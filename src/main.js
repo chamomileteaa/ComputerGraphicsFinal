@@ -58,7 +58,7 @@ const keys = {
     d: false
 };
 
-const moveSpeed = 6;
+const moveSpeed = 8;
 
 document.addEventListener('keydown', (e) => {
 
@@ -201,6 +201,49 @@ gltfLoader.load(
         console.error(error);
     }
 );
+
+//
+//FLOOR
+//
+
+const floorGeometry = new THREE.BoxGeometry(30, 0.4, 30);
+const floorMaterial = new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load("../assets/textures/grass.jpg"),
+});
+const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+
+floor.position.y = -8.5;
+floor.position.x = -3;
+
+floor.receiveShadow = true;
+scene.add(floor);
+
+const floorBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.2, 0);
+const floorBody = world.createRigidBody(floorBodyDesc);
+const floorCollider = RAPIER.ColliderDesc.cuboid(15, 0.2, 15).setFriction(1.0);
+world.createCollider(floorCollider, floorBody);
+
+///
+//WALL
+//
+
+const wallGeometry = new THREE.BoxGeometry(30, 20, 0.4);
+const wallMaterial = new THREE.MeshLambertMaterial({
+    map: new THREE.TextureLoader().load("../assets/textures/SKY1.png"),
+});
+const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+
+wall.position.y = 1.5;
+wall.position.x = -3;
+wall.position.z = -10.5
+
+wall.receiveShadow = true;
+scene.add(wall);
+
+const wallBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 2.3, -10);
+const wallBody = world.createRigidBody(wallBodyDesc);
+world.createCollider(RAPIER.ColliderDesc.cuboid(15, 2.5, 0.2).setFriction(0.8), wallBody);
+
 
 //
 // GRAB SYSTEM
