@@ -1,5 +1,6 @@
 import * as THREE from '../build/three.module.js';
-import { OrbitControls } from '../build/controls/OrbitControls.js';
+import { OrbitControls } from '../jsm/controls/OrbitControls.js';
+import { GLTFLoader } from '../jsm/loaders/GLTFLoader.js';
 
 import { createScene, createCamera, createRenderer } from './setup.js';
 
@@ -9,8 +10,11 @@ const scene = createScene();
 const camera = createCamera();
 const renderer = createRenderer(canvas);
 
+console.log("MAIN RUNNING");
+
 const grid = new THREE.GridHelper(50, 50);
 scene.add(grid);
+
 
 const controls = new OrbitControls(camera, renderer.domElement);
 
@@ -20,6 +24,26 @@ controls.dampingFactor = 0.05;
 
 controls.minDistance = 2;
 controls.maxDistance = 50;
+
+//add room
+const gltfLoader = new GLTFLoader();
+
+gltfLoader.load(
+    '../models/room/scene.gltf',
+
+    (gltf) => {
+        const room = gltf.scene;
+        room.position.set(0, 0, 0);
+        room.scale.set(1, 1, 1);
+
+        scene.add(room);
+        console.log("Room loaded");
+    },
+    undefined,
+    (error) => {
+        console.error("Error loading room:", error);
+    }
+);
 
 
 //
