@@ -1,108 +1,428 @@
 import * as THREE from '../build/three.module.js';
-import { OrbitControls } from '../jsm/controls/OrbitControls.js';
+import { PointerLockControls } from 'https://esm.sh/three@0.165.0/examples/jsm/controls/PointerLockControls.js';
 import { GLTFLoader } from '../jsm/loaders/GLTFLoader.js';
 
-import { createScene, createCamera, createRenderer } from './setup.js';
+import RAPIER from 'https://esm.sh/@dimforge/rapier3d-compat';
 
+import {
+    createScene,
+    createCamera,
+    createRenderer
+} from './setup.js';
+
+await RAPIER.init();
+
+//
+// BASIC SETUP
+//
 const canvas = document.querySelector('#app');
 
 const scene = createScene();
 const camera = createCamera();
 const renderer = createRenderer(canvas);
 
-console.log("MAIN RUNNING");
+//pointer controls
+const overlay = document.querySelector('#overlay');
+const crosshair = document.querySelector('#crosshair');
 
-const grid = new THREE.GridHelper(50, 50);
-scene.add(grid);
+const pointerControls = new PointerLockControls(camera, document.body);
 
+scene.add(pointerControls.object);
 
-const controls = new OrbitControls(camera, renderer.domElement);
+overlay.addEventListener('click', () => {
 
-// smooth movement
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
+    pointerControls.lock();
 
-controls.minDistance = 2;
-controls.maxDistance = 50;
+});
 
-//add room
-const gltfLoader = new GLTFLoader();
+pointerControls.addEventListener('lock', () => {
 
-gltfLoader.load(
-    '../models/room/scene.gltf',
+    overlay.style.display = 'none';
 
-    (gltf) => {
-        const room = gltf.scene;
-        room.position.set(0, 0, 0);
-        room.scale.set(1, 1, 1);
+    crosshair.style.display = 'block';
 
-        scene.add(room);
-        console.log("Room loaded");
-    },
-    undefined,
-    (error) => {
-        console.error("Error loading room:", error);
+});
+
+pointerControls.addEventListener('unlock', () => {
+
+    overlay.style.display = 'flex';
+
+    crosshair.style.display = 'none';
+
+});
+
+const keys = {
+    w: false,
+    a: false,
+    s: false,
+    d: false
+};
+
+const moveSpeed = 6;
+
+document.addEventListener('keydown', (e) => {
+
+    const key = e.key.toLowerCase();
+
+    if (keys.hasOwnProperty(key)) {
+        keys[key] = true;
     }
-);
 
+});
 
-//
-// FLOOR
-//
-const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(50, 50),
-    new THREE.MeshStandardMaterial({ color: 0x808080 })
-);
+document.addEventListener('keyup', (e) => {
 
-floor.rotation.x = -Math.PI / 2;
-floor.receiveShadow = true;
+    const key = e.key.toLowerCase();
 
-scene.add(floor);
+    if (keys.hasOwnProperty(key)) {
+        keys[key] = false;
+    }
+
+});
 
 //
 // LIGHTING
 //
-const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+const ambient = new THREE.AmbientLight(0xffffff, 1.5);
 scene.add(ambient);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+const dirLight = new THREE.DirectionalLight(0xffffff, 2);
 dirLight.position.set(5, 10, 5);
 dirLight.castShadow = true;
 
 scene.add(dirLight);
 
 //
-// TEST OBJECT
+// PHYSICS WORLD
 //
-const cube = new THREE.Mesh(
-    new THREE.BoxGeometry(),
-    new THREE.MeshStandardMaterial({ color: 0x00ffcc })
+const world = new RAPIER.World({
+    x: 0,
+    y: -9.81,
+    z: 0
+});
+
+//
+// PHYSICS CUBE
+//
+const cubeMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({
+        color: 0xff8a3d,
+        roughness: 0.48,
+        metalness: 0.08
+    })
 );
 
-cube.position.y = 5.5;
-cube.castShadow = true;
+cubeMesh.castShadow = true;
+scene.add(cubeMesh);
 
-scene.add(cube);
+const cubeBodyDesc = RAPIER.RigidBodyDesc
+    .dynamic()
+    .setTranslation(0, 3, 0)
+    .setLinearDamping(0.35)
+    .setAngularDamping(0.6);
+
+const cubeBody = world.createRigidBody(cubeBodyDesc);
+
+const cubeCollider = RAPIER.ColliderDesc
+    .cuboid(0.5, 0.5, 0.5)
+    .setDensity(1.2)
+    .setRestitution(0.25)
+    .setFriction(0.8);
+
+world.createCollider(cubeCollider, cubeBody);
 
 //
-// LOOP
+// ROOM MODEL + ROOM COLLIDERS
 //
+const gltfLoader = new GLTFLoader();
+
+gltfLoader.load(
+    '../models/room/scene.gltf',
+
+    (gltf) => {
+
+        const room = gltf.scene;
+
+        room.scale.set(15, 15, 15);
+        room.position.set(0, 0, 0);
+
+        scene.add(room);
+
+        //
+        // CREATE STATIC ROOM PHYSICS BODY
+        //
+        const roomBodyDesc = RAPIER.RigidBodyDesc.fixed();
+
+        const roomBody = world.createRigidBody(roomBodyDesc);
+
+        //
+        // CREATE COLLIDERS FROM ROOM MESHES
+        //
+        room.traverse((child) => {
+
+            if (!child.isMesh) return;
+
+            child.castShadow = true;
+            child.receiveShadow = true;
+
+            const geometry = child.geometry;
+
+            // ensure geometry exists
+            if (!geometry.attributes.position) return;
+
+            const vertices = geometry.attributes.position.array;
+
+            // trimesh requires indexed geometry
+            if (!geometry.index) return;
+
+            const indices = geometry.index.array;
+
+            //
+            // CREATE TRIMESH COLLIDER
+            //
+            const colliderDesc = RAPIER.ColliderDesc.trimesh(
+                vertices,
+                indices
+            );
+
+            world.createCollider(
+                colliderDesc,
+                roomBody
+            );
+        });
+
+        console.log('Room + colliders loaded');
+    },
+
+    undefined,
+
+    (error) => {
+        console.error(error);
+    }
+);
+
+//
+// GRAB SYSTEM
+//
+const raycaster = new THREE.Raycaster();
+const centre = new THREE.Vector2(0, 0);
+const cameraForward = new THREE.Vector3();
+const previousGrabPosition = new THREE.Vector3();
+const currentGrabPosition = new THREE.Vector3();
+const grabVelocity = new THREE.Vector3();
+const targetPosition = new THREE.Vector3();
+
+let isMouseDown = false;
+let isGrabbing = false;
+let grabDistance = 4;
+
+const maxGrabDistance = 7;
+const grabPullStrength = 14;
+const throwStrength = 10;
+
+//
+// INPUT
+//
+document.addEventListener('mousedown', (event) => {
+
+    if (event.button !== 0) return;
+
+    isMouseDown = true;
+
+    raycaster.setFromCamera(centre, camera);
+
+    const hits = raycaster.intersectObject(cubeMesh);
+
+    if (hits.length > 0 && hits[0].distance <= maxGrabDistance) {
+
+        isGrabbing = true;
+
+        grabDistance = THREE.MathUtils.clamp(
+            hits[0].distance,
+            2,
+            maxGrabDistance
+        );
+
+        const position = cubeBody.translation();
+
+        previousGrabPosition.set(
+            position.x,
+            position.y,
+            position.z
+        );
+
+        currentGrabPosition.copy(previousGrabPosition);
+
+        cubeBody.setAngvel({
+            x: 0,
+            y: 0,
+            z: 0
+        }, true);
+    }
+});
+
+document.addEventListener('mouseup', (event) => {
+
+    if (event.button !== 0) return;
+    isMouseDown = false;
+
+    if (isGrabbing) {
+
+        camera.getWorldDirection(cameraForward);
+
+        const releaseVelocity = {
+            x: grabVelocity.x + cameraForward.x * throwStrength,
+            y: grabVelocity.y + cameraForward.y * throwStrength + 1.5,
+            z: grabVelocity.z + cameraForward.z * throwStrength
+        };
+
+        cubeBody.setLinvel(releaseVelocity, true);
+
+        isGrabbing = false;
+    }
+});
+
+//
+// UPDATE GRAB
+//
+function updateGrab(delta) {
+
+    if (!isGrabbing || !isMouseDown) return;
+
+    camera.getWorldDirection(cameraForward);
+
+    targetPosition
+        .copy(camera.position)
+        .addScaledVector(cameraForward, grabDistance);
+
+    const cubePosition = cubeBody.translation();
+
+    currentGrabPosition.set(
+        cubePosition.x,
+        cubePosition.y,
+        cubePosition.z
+    );
+
+    const desiredVelocity = {
+        x: (targetPosition.x - cubePosition.x) * grabPullStrength,
+        y: (targetPosition.y - cubePosition.y) * grabPullStrength,
+        z: (targetPosition.z - cubePosition.z) * grabPullStrength
+    };
+
+    cubeBody.setLinvel(desiredVelocity, true);
+
+    cubeBody.setAngvel({
+        x: 0,
+        y: 0,
+        z: 0
+    }, true);
+
+    grabVelocity
+        .copy(currentGrabPosition)
+        .sub(previousGrabPosition)
+        .divideScalar(Math.max(delta, 0.001));
+
+    previousGrabPosition.copy(currentGrabPosition);
+}
+
+//
+// SYNC PHYSICS
+//
+function syncCubeMesh() {
+
+    const position = cubeBody.translation();
+    const rotation = cubeBody.rotation();
+
+    cubeMesh.position.set(
+        position.x,
+        position.y,
+        position.z
+    );
+
+    cubeMesh.quaternion.set(
+        rotation.x,
+        rotation.y,
+        rotation.z,
+        rotation.w
+    );
+}
+
+const moveDirection = new THREE.Vector3();
+const rightVector = new THREE.Vector3();
+
+function updateMovement(delta) {
+
+    moveDirection.set(0, 0, 0);
+
+    camera.getWorldDirection(moveDirection);
+
+    moveDirection.y = 0;
+    moveDirection.normalize();
+
+    rightVector.crossVectors(moveDirection, camera.up).normalize();
+
+    if (keys.w) {
+        camera.position.addScaledVector(moveDirection, moveSpeed * delta);
+    }
+
+    if (keys.s) {
+        camera.position.addScaledVector(moveDirection, -moveSpeed * delta);
+    }
+
+    if (keys.d) {
+        camera.position.addScaledVector(rightVector, moveSpeed * delta);
+    }
+
+    if (keys.a) {
+        camera.position.addScaledVector(rightVector, -moveSpeed * delta);
+    }
+}
+
+//
+// ANIMATION LOOP
+//
+const clock = new THREE.Clock();
+
+let physicsAccumulator = 0;
+const fixedStep = 1 / 60;
+
 function animate() {
+
     requestAnimationFrame(animate);
 
-    cube.rotation.y += 0.01;
+    const delta = Math.min(clock.getDelta(), 0.05);
+    updateMovement(delta);
+
+    updateGrab(delta);
+
+    physicsAccumulator += delta;
+
+    while (physicsAccumulator >= fixedStep) {
+
+        world.timestep = fixedStep;
+        world.step();
+
+        physicsAccumulator -= fixedStep;
+    }
+
+    syncCubeMesh();
 
     renderer.render(scene, camera);
 }
 
 animate();
-
 //
-// RESIZE HANDLING
+// RESIZE
 //
 window.addEventListener('resize', () => {
+
     camera.aspect = window.innerWidth / window.innerHeight;
+
     camera.updateProjectionMatrix();
 
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
 });
