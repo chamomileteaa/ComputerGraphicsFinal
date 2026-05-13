@@ -537,13 +537,13 @@ let waterMesh;
 let waterBody;
 
 gltfLoader.load(
-    '../models/water/water_bottle_free.glb',
+    '../models/water/a_high_end_sparkling__1209160953_texture.glb',
 
     (gltf) => {
 
         waterMesh = gltf.scene;
 
-        waterMesh.scale.set(3, 3, 3);
+        waterMesh.scale.set(1, 1, 1);
         waterMesh.position.set(2, 3, 0);
 
         waterMesh.userData.friendshipValue = -10; //GOOD obj //bad=-10
