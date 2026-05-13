@@ -2,7 +2,54 @@ body {
     margin: 0;
     overflow: hidden;
 }
+#friendship-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
 
+    width: 320px;
+
+    z-index: 100;
+
+    user-select: none;
+}
+
+#friendship-label {
+    color: white;
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    margin-bottom: 8px;
+    text-align: center;
+
+    text-shadow: 0 0 10px rgba(0,0,0,0.6);
+}
+
+#friendship-bar-bg {
+    width: 100%;
+    height: 26px;
+
+    background: rgba(255,255,255,0.15);
+
+    border: 2px solid rgba(255,255,255,0.3);
+
+    border-radius: 999px;
+
+    overflow: hidden;
+
+    backdrop-filter: blur(6px);
+}
+
+#friendship-bar {
+    width: 0%;
+    height: 100%;
+
+    background: linear-gradient(to right, #cff882, #7bcf48);
+
+    transition:
+            width 0.3s ease,
+            background 0.3s ease;
+}
 canvas {
     display: block;
 }

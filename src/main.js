@@ -21,6 +21,15 @@ const scene = createScene();
 const camera = createCamera();
 const renderer = createRenderer(canvas);
 
+const grabbableObjects = [];
+
+let friendship = 0;
+
+const friendshipBar = document.querySelector('#friendship-bar');
+
+const objectsToRemove = [];
+
+
 //pointer controls
 const overlay = document.querySelector('#overlay');
 const crosshair = document.querySelector('#crosshair');
@@ -101,36 +110,8 @@ const world = new RAPIER.World({
     z: 0
 });
 
-//
-// PHYSICS CUBE
-//
-const cubeMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshStandardMaterial({
-        color: 0xff8a3d,
-        roughness: 0.48,
-        metalness: 0.08
-    })
-);
 
-cubeMesh.castShadow = true;
-scene.add(cubeMesh);
 
-const cubeBodyDesc = RAPIER.RigidBodyDesc
-    .dynamic()
-    .setTranslation(0, 3, 0)
-    .setLinearDamping(0.35)
-    .setAngularDamping(0.6);
-
-const cubeBody = world.createRigidBody(cubeBodyDesc);
-
-const cubeCollider = RAPIER.ColliderDesc
-    .cuboid(0.5, 0.5, 0.5)
-    .setDensity(1.2)
-    .setRestitution(0.25)
-    .setFriction(0.8);
-
-world.createCollider(cubeCollider, cubeBody);
 //
 // Add cat
 //
@@ -147,6 +128,32 @@ gltfLoader.load(
         cat.position.set(-3, -3, -3);
 
         scene.add(cat);
+
+//
+// CAT PHYSICS BODY
+//
+        const catBodyDesc = RAPIER.RigidBodyDesc
+            .fixed()
+            .setTranslation(-3, -3, -3);
+
+        const catBody = world.createRigidBody(catBodyDesc);
+
+//
+// SIMPLE CAT COLLIDER
+//
+        const catCollider = RAPIER.ColliderDesc
+            .cuboid(1.5, 1.5, 1.5)
+            .setSensor(true);
+
+        world.createCollider(catCollider, catBody);
+
+//
+// SAVE REFERENCES
+//
+        cat.userData.rigidBody = catBody;
+        cat.userData.collider = catCollider;
+
+        window.catBody = catBody;
     },
 
     undefined,
@@ -155,6 +162,7 @@ gltfLoader.load(
         console.error(error);
     }
 );
+
 
 //
 // ROOM MODEL + ROOM COLLIDERS
@@ -225,6 +233,150 @@ gltfLoader.load(
     }
 );
 
+//add bread
+let breadMesh;
+let breadBody;
+
+// add bread
+gltfLoader.load(
+    '../models/bread/meshy_ai_a_realistic_4hd_image_0117145710_texture.glb',
+
+    (gltf) => {
+
+        breadMesh = gltf.scene;
+
+        breadMesh.scale.set(1, 1, 1);
+        breadMesh.position.set(5, 3, 3.2);
+
+        breadMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+
+        scene.add(breadMesh);
+
+        //
+        // BREAD PHYSICS BODY
+        //
+        const breadBodyDesc = RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(-6, 3, 2)
+            .setLinearDamping(0.35)
+            .setAngularDamping(0.6);
+
+        breadBody = world.createRigidBody(breadBodyDesc);
+
+        //
+        // SIMPLE COLLIDER
+        //
+        const breadCollider = RAPIER.ColliderDesc
+            .cuboid(0.5, 0.5, 0.5)
+            .setDensity(1.0)
+            .setFriction(0.8);
+
+        const breadColliderRef =
+            world.createCollider(breadCollider, breadBody);
+
+        breadMesh.userData.collider = breadColliderRef;
+
+        grabbableObjects.push({
+            mesh: breadMesh,
+            body: breadBody
+        });
+
+    },
+
+    undefined,
+
+    (error) => {
+        console.error(error);
+    }
+);
+
+//add fish
+let fishMesh;
+let fishBody;
+
+gltfLoader.load(
+    '../models/fish/animated_low_poly_fish.glb',
+
+    (gltf) => {
+
+        fishMesh = gltf.scene;
+
+        fishMesh.scale.set(2, 2, 2);
+        fishMesh.position.set(2, 3, 0);
+
+        fishMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        scene.add(fishMesh);
+
+        //
+        // PHYSICS
+        //
+        const fishBodyDesc = RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(2, 3, 0); //change x here for location
+
+        fishBody = world.createRigidBody(fishBodyDesc);
+
+        const fishCollider = RAPIER.ColliderDesc
+            .cuboid(0.5, 0.5, 0.5);
+
+        const fishColliderRef =
+            world.createCollider(fishCollider, fishBody);
+
+        fishMesh.userData.collider = fishColliderRef;
+
+        //
+        // SAVE AS GRABBABLE
+        //
+        grabbableObjects.push({
+            mesh: fishMesh,
+            body: fishBody
+        });
+    }
+);
+
+//add milk
+
+let milkMesh;
+let milkBody;
+
+gltfLoader.load(
+    '../models/milk/cc0_milk_carton.glb',
+
+    (gltf) => {
+
+        milkMesh = gltf.scene;
+
+        milkMesh.scale.set(8, 8, 8);
+        milkMesh.position.set(2, 3, 0);
+
+        milkMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        scene.add(milkMesh);
+
+        // PHYSICS
+        const milkBodyDes = RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(5, 3, 0); //change x here for location
+
+        milkBody = world.createRigidBody(milkBodyDes);
+
+        const milkCollider = RAPIER.ColliderDesc
+            .cuboid(0.5, 0.5, 0.5);
+
+        const milkColliderRef =
+            world.createCollider(milkCollider, milkBody);
+
+        milkMesh.userData.collider = milkColliderRef;
+
+        //
+        // SAVE AS GRABBABLE
+        //
+        grabbableObjects.push({
+            mesh: milkMesh,
+            body: milkBody
+        });
+    }
+);
+
 //
 //FLOOR
 //
@@ -290,6 +442,9 @@ const throwStrength = 10;
 //
 // INPUT
 //
+let grabbedBody = null;
+let grabbedMesh = null;
+
 document.addEventListener('mousedown', (event) => {
 
     if (event.button !== 0) return;
@@ -298,61 +453,100 @@ document.addEventListener('mousedown', (event) => {
 
     raycaster.setFromCamera(centre, camera);
 
-    const hits = raycaster.intersectObject(cubeMesh);
+    const meshes = [];
 
-    if (hits.length > 0 && hits[0].distance <= maxGrabDistance) {
-
-        isGrabbing = true;
-
-        grabDistance = THREE.MathUtils.clamp(
-            hits[0].distance,
-            2,
-            maxGrabDistance
-        );
-
-        const position = cubeBody.translation();
-
-        previousGrabPosition.set(
-            position.x,
-            position.y,
-            position.z
-        );
-
-        currentGrabPosition.copy(previousGrabPosition);
-
-        cubeBody.setAngvel({
-            x: 0,
-            y: 0,
-            z: 0
-        }, true);
+    for (const obj of grabbableObjects) {
+        meshes.push(obj.mesh);
     }
+
+    const hits = raycaster.intersectObjects(
+        meshes,
+        true
+    );
+
+    if (hits.length === 0) return;
+
+    if (hits[0].distance > maxGrabDistance) return;
+
+    isGrabbing = true;
+
+    grabDistance = THREE.MathUtils.clamp(
+        hits[0].distance,
+        2,
+        maxGrabDistance
+    );
+
+    //
+// FIND HIT OBJECT
+//
+    for (const obj of grabbableObjects) {
+
+        let current = hits[0].object;
+
+        while (current) {
+
+            if (current === obj.mesh) {
+
+                grabbedBody = obj.body;
+                grabbedMesh = obj.mesh;
+
+                break;
+            }
+
+            current = current.parent;
+        }
+    }
+
+
+    if (!grabbedBody) return;
+
+    const position = grabbedBody.translation();
+
+    previousGrabPosition.set(
+        position.x,
+        position.y,
+        position.z
+    );
+
+    currentGrabPosition.copy(previousGrabPosition);
+
+    grabbedBody.setAngvel({
+        x: 0,
+        y: 0,
+        z: 0
+    }, true);
 });
 
 document.addEventListener('mouseup', (event) => {
 
     if (event.button !== 0) return;
+
     isMouseDown = false;
 
-    if (isGrabbing) {
+    if (!isGrabbing || !grabbedBody) return;
 
-        camera.getWorldDirection(cameraForward);
+    camera.getWorldDirection(cameraForward);
 
-        const releaseVelocity = {
-            x: grabVelocity.x + cameraForward.x * throwStrength,
-            y: grabVelocity.y + cameraForward.y * throwStrength + 1.5,
-            z: grabVelocity.z + cameraForward.z * throwStrength
-        };
+    const releaseVelocity = {
+        x: grabVelocity.x + cameraForward.x * throwStrength,
+        y: grabVelocity.y + cameraForward.y * throwStrength + 1.5,
+        z: grabVelocity.z + cameraForward.z * throwStrength
+    };
 
-        cubeBody.setLinvel(releaseVelocity, true);
+    grabbedBody.setLinvel(releaseVelocity, true);
 
-        isGrabbing = false;
-    }
+    isGrabbing = false;
+
+    grabbedBody = null;
+    grabbedMesh = null;
 });
 
 //
 // UPDATE GRAB
 //
 function updateGrab(delta) {
+
+    if (!grabbedBody) return;
 
     if (!isGrabbing || !isMouseDown) return;
 
@@ -362,23 +556,23 @@ function updateGrab(delta) {
         .copy(camera.position)
         .addScaledVector(cameraForward, grabDistance);
 
-    const cubePosition = cubeBody.translation();
+    const objectPosition = grabbedBody.translation();
 
     currentGrabPosition.set(
-        cubePosition.x,
-        cubePosition.y,
-        cubePosition.z
+        objectPosition.x,
+        objectPosition.y,
+        objectPosition.z
     );
 
     const desiredVelocity = {
-        x: (targetPosition.x - cubePosition.x) * grabPullStrength,
-        y: (targetPosition.y - cubePosition.y) * grabPullStrength,
-        z: (targetPosition.z - cubePosition.z) * grabPullStrength
+        x: (targetPosition.x - objectPosition.x) * grabPullStrength,
+        y: (targetPosition.y - objectPosition.y) * grabPullStrength,
+        z: (targetPosition.z - objectPosition.z) * grabPullStrength
     };
 
-    cubeBody.setLinvel(desiredVelocity, true);
+    grabbedBody.setLinvel(desiredVelocity, true);
 
-    cubeBody.setAngvel({
+    grabbedBody.setAngvel({
         x: 0,
         y: 0,
         z: 0
@@ -393,25 +587,29 @@ function updateGrab(delta) {
 }
 
 //
-// SYNC PHYSICS
+// Sync Functions
 //
-function syncCubeMesh() {
 
-    const position = cubeBody.translation();
-    const rotation = cubeBody.rotation();
+function syncGrabbableObjects() {
 
-    cubeMesh.position.set(
-        position.x,
-        position.y,
-        position.z
-    );
+    for (const obj of grabbableObjects) {
 
-    cubeMesh.quaternion.set(
-        rotation.x,
-        rotation.y,
-        rotation.z,
-        rotation.w
-    );
+        const position = obj.body.translation();
+        const rotation = obj.body.rotation();
+
+        obj.mesh.position.set(
+            position.x,
+            position.y,
+            position.z
+        );
+
+        obj.mesh.quaternion.set(
+            rotation.x,
+            rotation.y,
+            rotation.z,
+            rotation.w
+        );
+    }
 }
 
 const moveDirection = new THREE.Vector3();
@@ -453,6 +651,75 @@ const clock = new THREE.Clock();
 let physicsAccumulator = 0;
 const fixedStep = 1 / 60;
 
+//friendship update
+
+function updateFriendship(change) {
+
+    friendship += change;
+
+    friendship = Math.max(0, Math.min(100, friendship));
+
+    friendshipBar.style.width = `${friendship}%`;
+
+    // color feedback
+    friendshipBar.style.background =
+        'linear-gradient(to right, #cff882, #7bcf48)';
+    console.log('Friendship:', friendship);
+}
+
+        const triggeredObjects = new Set();
+
+        function checkFriendshipCollisions() {
+
+            if (!window.catBody) return;
+
+            const catPosition = window.catBody.translation();
+
+            for (const obj of grabbableObjects) {
+
+                if (obj.mesh.userData.friendshipValue === undefined) continue;
+
+                const position = obj.body.translation();
+
+                const dx = position.x - catPosition.x;
+                const dy = position.y - catPosition.y;
+                const dz = position.z - catPosition.z;
+
+                const distance = Math.sqrt(
+                    dx * dx +
+                    dy * dy +
+                    dz * dz
+                );
+
+                //
+                // COLLISION DISTANCE
+                //
+                if (distance < 5) {
+
+                    //
+                    // PREVENT REPEATED TRIGGERS
+                    //
+                    if (triggeredObjects.has(obj.mesh)) continue;
+
+                    triggeredObjects.add(obj.mesh);
+
+                    updateFriendship(
+                        obj.mesh.userData.friendshipValue
+                    );
+
+                    //
+                    // delete obj when collide
+                    //
+                    objectsToRemove.push(obj);
+
+                    console.log(
+                        'Friendship changed:',
+                        obj.mesh.userData.friendshipValue
+                    );
+                }
+            }
+        }
+
 function animate() {
 
     requestAnimationFrame(animate);
@@ -466,13 +733,50 @@ function animate() {
 
     while (physicsAccumulator >= fixedStep) {
 
-        world.timestep = fixedStep;
         world.step();
 
         physicsAccumulator -= fixedStep;
     }
 
-    syncCubeMesh();
+    //
+// SAFE OBJECT REMOVAL
+//
+    for (const obj of objectsToRemove) {
+
+        scene.remove(obj.mesh);
+
+        world.removeRigidBody(obj.body);
+
+        if (obj.mesh === fishMesh) {
+            fishMesh = null;
+            fishBody = null;
+        }
+
+        if (obj.mesh === breadMesh) {
+            breadMesh = null;
+            breadBody = null;
+        }
+
+        if (obj.mesh === milkMesh) {
+            milkMesh = null;
+            milkBody = null;
+        }
+
+        const index = grabbableObjects.indexOf(obj);
+
+        if (index > -1) {
+            grabbableObjects.splice(index, 1);
+        }
+    }
+
+    objectsToRemove.length = 0;
+
+    checkFriendshipCollisions();
+
+    syncGrabbableObjects();
+
+
+
 
     renderer.render(scene, camera);
 }
