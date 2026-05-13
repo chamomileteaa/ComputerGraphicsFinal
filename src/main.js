@@ -139,6 +139,7 @@ const gltfLoader = new GLTFLoader();
 
 gltfLoader.load(
     '../models/room/scene.gltf',
+    //changes
 
     (gltf) => {
 
