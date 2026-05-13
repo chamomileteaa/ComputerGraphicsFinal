@@ -282,7 +282,7 @@ gltfLoader.load(
         //
         const breadBodyDesc = RAPIER.RigidBodyDesc
             .dynamic()
-            .setTranslation(-6, 3, 2)
+            .setTranslation(-11, 0, 0)
             .setLinearDamping(0.35)
             .setAngularDamping(0.6);
 
@@ -337,7 +337,7 @@ gltfLoader.load(
         //
         const fishBodyDesc = RAPIER.RigidBodyDesc
             .dynamic()
-            .setTranslation(2, 3, 0); //change x here for location
+            .setTranslation(-13, 0, -5); //change x here for location
 
         fishBody = world.createRigidBody(fishBodyDesc);
 
@@ -380,7 +380,7 @@ gltfLoader.load(
         // PHYSICS
         const milkBodyDes = RAPIER.RigidBodyDesc
             .dynamic()
-            .setTranslation(5, 3, 0); //change x here for location
+            .setTranslation(10, 0, -5); //change x here for location
 
         milkBody = world.createRigidBody(milkBodyDes);
 
@@ -423,7 +423,7 @@ gltfLoader.load(
         // PHYSICS
         const birdBodyDes = RAPIER.RigidBodyDesc
             .dynamic()
-            .setTranslation(3, 3, 0); //change x here for location
+            .setTranslation(7, 0, -5); //change x here for location
 
         birdBody = world.createRigidBody(birdBodyDes);
 
@@ -466,7 +466,7 @@ gltfLoader.load(
         // PHYSICS
         const cucBodyDes = RAPIER.RigidBodyDesc
             .dynamic()
-            .setTranslation(-5, 3, 0); //change x here for location
+            .setTranslation(4, 0, -5); //change x here for location
 
         cucBody = world.createRigidBody(cucBodyDes);
 
@@ -509,7 +509,7 @@ gltfLoader.load(
         // PHYSICS
         const mealBodyDes = RAPIER.RigidBodyDesc
             .dynamic()
-            .setTranslation(-2, 3, 5); //change x here for location
+            .setTranslation(-10, 1, -5); //change x here for location
 
         mealBody = world.createRigidBody(mealBodyDes);
 
@@ -552,7 +552,7 @@ gltfLoader.load(
         // PHYSICS
         const waterBodyDes = RAPIER.RigidBodyDesc
             .dynamic()
-            .setTranslation(-4, 3, 5); //change x here for location
+            .setTranslation(6, 0, 0); //change x here for location
 
         waterBody = world.createRigidBody(waterBodyDes);
 
