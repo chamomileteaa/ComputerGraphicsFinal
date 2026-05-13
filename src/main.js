@@ -144,8 +144,8 @@ gltfLoader.load(
 
         const room = gltf.scene;
 
-        room.scale.set(15, 15, 15);
-        room.position.set(0, 0, 0);
+        room.scale.set(20, 20, 20);
+        room.position.set(0, 3, 3.2);
 
         scene.add(room);
 
@@ -229,7 +229,7 @@ world.createCollider(floorCollider, floorBody);
 
 const wallGeometry = new THREE.BoxGeometry(30, 20, 0.4);
 const wallMaterial = new THREE.MeshLambertMaterial({
-    map: new THREE.TextureLoader().load("../assets/textures/SKY1.png"),
+    map: new THREE.TextureLoader().load("../assets/textures/field.jpg"),
 });
 const wall = new THREE.Mesh(wallGeometry, wallMaterial);
 
