@@ -24,10 +24,33 @@ const renderer = createRenderer(canvas);
 const grabbableObjects = [];
 
 let friendship = 0;
+let friendshipComplete = false;
+
 
 const friendshipBar = document.querySelector('#friendship-bar');
 
 const objectsToRemove = [];
+
+// AUDIO
+//
+const listener = new THREE.AudioListener();
+
+camera.add(listener);
+
+const successSound = new THREE.Audio(listener);
+
+const audioLoader = new THREE.AudioLoader();
+
+audioLoader.load(
+    '../assets/audio/simple-and-clean-melody.mp3',
+
+    (buffer) => {
+
+        successSound.setBuffer(buffer);
+
+        successSound.setVolume(0.7);
+    }
+);
 
 
 //pointer controls
@@ -273,7 +296,7 @@ gltfLoader.load(
         breadMesh.scale.set(1, 1, 1);
         breadMesh.position.set(5, 3, 3.2);
 
-        breadMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        breadMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
 
         scene.add(breadMesh);
 
@@ -329,7 +352,7 @@ gltfLoader.load(
         fishMesh.scale.set(2, 2, 2);
         fishMesh.position.set(2, 3, 0);
 
-        fishMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        fishMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         scene.add(fishMesh);
 
         //
@@ -374,7 +397,7 @@ gltfLoader.load(
         milkMesh.scale.set(8, 8, 8);
         milkMesh.position.set(2, 3, 0);
 
-        milkMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        milkMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         scene.add(milkMesh);
 
         // PHYSICS
@@ -417,7 +440,7 @@ gltfLoader.load(
         birdMesh.scale.set(8, 8, 8);
         birdMesh.position.set(2, 3, 0);
 
-        birdMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        birdMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         scene.add(birdMesh);
 
         // PHYSICS
@@ -546,7 +569,7 @@ gltfLoader.load(
         waterMesh.scale.set(1, 1, 1);
         waterMesh.position.set(2, 3, 0);
 
-        waterMesh.userData.friendshipValue = -10; //GOOD obj //bad=-10
+        waterMesh.userData.friendshipValue = -25; //GOOD obj //bad=-10
         scene.add(waterMesh);
 
         // PHYSICS
@@ -857,6 +880,18 @@ function updateFriendship(change) {
     friendship += change;
 
     friendship = Math.max(0, Math.min(100, friendship));
+
+    //
+    // PLAY SOUND AT MAX FRIENDSHIP
+    //
+    if (friendship >= 100 && !friendshipComplete) {
+
+        friendshipComplete = true;
+
+        successSound.play();
+
+        console.log('Friendship MAXED');
+    }
 
     friendshipBar.style.width = `${friendship}%`;
 
