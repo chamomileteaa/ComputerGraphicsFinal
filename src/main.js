@@ -131,12 +131,34 @@ const cubeCollider = RAPIER.ColliderDesc
     .setFriction(0.8);
 
 world.createCollider(cubeCollider, cubeBody);
+//
+// Add cat
+//
+const gltfLoader = new GLTFLoader();
+
+gltfLoader.load(
+    '../models/cat/cat.gltf',
+
+    (gltf) => {
+
+        const cat = gltf.scene;
+
+        cat.scale.set(3, 3, 3);
+        cat.position.set(-3, -3, -3);
+
+        scene.add(cat);
+    },
+
+    undefined,
+
+    (error) => {
+        console.error(error);
+    }
+);
 
 //
 // ROOM MODEL + ROOM COLLIDERS
 //
-const gltfLoader = new GLTFLoader();
-
 gltfLoader.load(
     '../models/room/scene.gltf',
     //changes
