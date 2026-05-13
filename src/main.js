@@ -117,6 +117,8 @@ const world = new RAPIER.World({
 //
 const gltfLoader = new GLTFLoader();
 
+const textureLoader = new THREE.TextureLoader();
+
 gltfLoader.load(
     '../models/cat/cat.gltf',
 
@@ -124,32 +126,54 @@ gltfLoader.load(
 
         const cat = gltf.scene;
 
+        //
+        // LOAD CAT TEXTURE
+        //
+        const catTexture = textureLoader.load(
+            '../assets/textures/Cat tex.png'
+        );
+
+        //
+        // APPLY TEXTURE TO ALL CAT MESHES
+        //
+        cat.traverse((child) => {
+
+            if (!child.isMesh) return;
+
+            child.material = new THREE.MeshStandardMaterial({
+                map: catTexture
+            });
+
+            child.castShadow = true;
+            child.receiveShadow = true;
+        });
+
         cat.scale.set(3, 3, 3);
         cat.position.set(-3, -3, -3);
 
         scene.add(cat);
 
-//
-// CAT PHYSICS BODY
-//
+        //
+        // CAT PHYSICS BODY
+        //
         const catBodyDesc = RAPIER.RigidBodyDesc
             .fixed()
             .setTranslation(-3, -3, -3);
 
         const catBody = world.createRigidBody(catBodyDesc);
 
-//
-// SIMPLE CAT COLLIDER
-//
+        //
+        // SIMPLE CAT COLLIDER
+        //
         const catCollider = RAPIER.ColliderDesc
             .cuboid(1.5, 1.5, 1.5)
             .setSensor(true);
 
         world.createCollider(catCollider, catBody);
 
-//
-// SAVE REFERENCES
-//
+        //
+        // SAVE REFERENCES
+        //
         cat.userData.rigidBody = catBody;
         cat.userData.collider = catCollider;
 
@@ -162,6 +186,7 @@ gltfLoader.load(
         console.error(error);
     }
 );
+
 
 
 //
@@ -376,6 +401,180 @@ gltfLoader.load(
         });
     }
 );
+
+//ADD BIRD
+
+let birdMesh;
+let birdBody;
+
+gltfLoader.load(
+    '../models/bird/cuckoo.glb',
+
+    (gltf) => {
+
+        birdMesh = gltf.scene;
+
+        birdMesh.scale.set(8, 8, 8);
+        birdMesh.position.set(2, 3, 0);
+
+        birdMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        scene.add(birdMesh);
+
+        // PHYSICS
+        const birdBodyDes = RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(3, 3, 0); //change x here for location
+
+        birdBody = world.createRigidBody(birdBodyDes);
+
+        const birdCollider = RAPIER.ColliderDesc
+            .cuboid(0.5, 0.5, 0.5);
+
+        const birdColliderRef =
+            world.createCollider(birdCollider, birdBody);
+
+        birdMesh.userData.collider = birdColliderRef;
+
+        //
+        // SAVE AS GRABBABLE
+        //
+        grabbableObjects.push({
+            mesh: birdMesh,
+            body: birdBody
+        });
+    }
+);
+
+//ADD CUCUMBER
+
+let cucMesh;
+let cucBody;
+
+gltfLoader.load(
+    '../models/cucumber/cucumber_tl2leafjw_mid.glb',
+
+    (gltf) => {
+
+        cucMesh = gltf.scene;
+
+        cucMesh.scale.set(8, 8, 8);
+        cucMesh.position.set(2, 3, 0);
+
+        cucMesh.userData.friendshipValue = -15; //GOOD obj //bad=-10
+        scene.add(cucMesh);
+
+        // PHYSICS
+        const cucBodyDes = RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(-5, 3, 0); //change x here for location
+
+        cucBody = world.createRigidBody(cucBodyDes);
+
+        const cucCollider = RAPIER.ColliderDesc
+            .cuboid(0.5, 0.5, 0.5);
+
+        const cucColliderRef =
+            world.createCollider(cucCollider, cucBody);
+
+        cucMesh.userData.collider = cucColliderRef;
+
+        //
+        // SAVE AS GRABBABLE
+        //
+        grabbableObjects.push({
+            mesh: cucMesh,
+            body: cucBody
+        });
+    }
+);
+
+//ADD HOT MEAL
+
+let mealMesh;
+let mealBody;
+
+gltfLoader.load(
+    '../models/meal/food_delicious_nasi_lemak.glb',
+
+    (gltf) => {
+
+        mealMesh = gltf.scene;
+
+        mealMesh.scale.set(0.03, 0.03, 0.03);
+        mealMesh.position.set(2, 3, 0);
+
+        mealMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+        scene.add(mealMesh);
+
+        // PHYSICS
+        const mealBodyDes = RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(-2, 3, 5); //change x here for location
+
+        mealBody = world.createRigidBody(mealBodyDes);
+
+        const mealCollider = RAPIER.ColliderDesc
+            .cuboid(0.5, 0.5, 0.5);
+
+        const mealColliderRef =
+            world.createCollider(mealCollider, mealBody);
+
+        mealMesh.userData.collider = mealColliderRef;
+
+        //
+        // SAVE AS GRABBABLE
+        //
+        grabbableObjects.push({
+            mesh: mealMesh,
+            body: mealBody
+        });
+    }
+);
+
+//ADD WATER
+
+let waterMesh;
+let waterBody;
+
+gltfLoader.load(
+    '../models/water/water_bottle_free.glb',
+
+    (gltf) => {
+
+        waterMesh = gltf.scene;
+
+        waterMesh.scale.set(3, 3, 3);
+        waterMesh.position.set(2, 3, 0);
+
+        waterMesh.userData.friendshipValue = -10; //GOOD obj //bad=-10
+        scene.add(waterMesh);
+
+        // PHYSICS
+        const waterBodyDes = RAPIER.RigidBodyDesc
+            .dynamic()
+            .setTranslation(-4, 3, 5); //change x here for location
+
+        waterBody = world.createRigidBody(waterBodyDes);
+
+        const waterCollider = RAPIER.ColliderDesc
+            .cuboid(0.5, 0.5, 0.5);
+
+        const waterColliderRef =
+            world.createCollider(waterCollider, waterBody);
+
+        waterMesh.userData.collider = waterColliderRef;
+
+        //
+        // SAVE AS GRABBABLE
+        //
+        grabbableObjects.push({
+            mesh: waterMesh,
+            body: waterBody
+        });
+    }
+);
+
+
 
 //
 //FLOOR
