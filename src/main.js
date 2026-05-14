@@ -1,6 +1,6 @@
 import * as THREE from '../build/three.module.js';
-import { PointerLockControls } from 'https://esm.sh/three@0.165.0/examples/jsm/controls/PointerLockControls.js';
 import { GLTFLoader } from '../jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from '../jsm/controls/OrbitControls.js';
 
 import RAPIER from 'https://esm.sh/@dimforge/rapier3d-compat';
 
@@ -20,6 +20,141 @@ const canvas = document.querySelector('#app');
 const scene = createScene();
 const camera = createCamera();
 const renderer = createRenderer(canvas);
+
+//
+// ORBIT CAMERA
+//
+const CAMERA_TARGET = new THREE.Vector3(1, 2.5, 4);
+
+camera.position.set(20, 20, 20);
+camera.lookAt(CAMERA_TARGET);
+camera.updateProjectionMatrix();
+
+const controls = new OrbitControls(camera, renderer.domElement);
+
+controls.target.copy(CAMERA_TARGET);
+
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+controls.enableRotate = true;
+controls.rotateSpeed = 0.55;
+
+controls.enableZoom = true;
+controls.zoomSpeed = 0.8;
+
+controls.enablePan = true;
+controls.panSpeed = 0.7;
+
+controls.minDistance = 18;
+controls.maxDistance = 55;
+
+controls.minPolarAngle = THREE.MathUtils.degToRad(25);
+controls.maxPolarAngle = THREE.MathUtils.degToRad(75);
+
+controls.update();
+
+const overlay = document.querySelector('#overlay');
+const crosshair = document.querySelector('#crosshair');
+
+if (overlay) overlay.style.display = 'none';
+if (crosshair) crosshair.style.display = 'none';
+
+controls.mouseButtons.LEFT = null;
+controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+
+renderer.domElement.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+});
+
+
+//
+// FOOD LAUNCHER SYSTEM
+//
+const foodTemplates = {};
+
+const foodTypes = [
+    'bread',
+    'fish',
+    'milk',
+    'bird',
+    'cucumber',
+    'meal',
+    'water'
+];
+
+let selectedFoodIndex = 0;
+
+const foodDisplayNames = {
+    bread: 'Bread',
+    fish: 'Fish',
+    milk: 'Milk',
+    bird: 'Bird',
+    cucumber: 'Cucumber',
+    meal: 'Hot Meal',
+    water: 'Water'
+};
+
+
+//
+// FOOD SELECTOR UI
+//
+const foodSelector = document.createElement('div');
+
+foodSelector.style.position = 'fixed';
+foodSelector.style.left = '50%';
+foodSelector.style.bottom = '28px';
+foodSelector.style.transform = 'translateX(-50%)';
+foodSelector.style.display = 'flex';
+foodSelector.style.alignItems = 'flex-end';
+foodSelector.style.justifyContent = 'center';
+foodSelector.style.gap = '12px';
+foodSelector.style.pointerEvents = 'none';
+foodSelector.style.zIndex = '20';
+foodSelector.style.fontFamily = 'Arial, sans-serif';
+
+document.body.appendChild(foodSelector);
+
+function updateFoodSelectorUI() {
+
+    foodSelector.innerHTML = '';
+
+    for (let i = 0; i < foodTypes.length; i++) {
+
+        const type = foodTypes[i];
+
+        const item = document.createElement('div');
+
+        const distanceFromSelected = Math.abs(i - selectedFoodIndex);
+
+        item.textContent = foodDisplayNames[type];
+
+        item.style.padding = '10px 14px';
+        item.style.borderRadius = '999px';
+        item.style.background = i === selectedFoodIndex
+            ? 'rgba(255, 255, 255, 0.95)'
+            : 'rgba(255, 255, 255, 0.45)';
+
+        item.style.color = '#111';
+        item.style.fontWeight = i === selectedFoodIndex ? '700' : '500';
+        item.style.fontSize = i === selectedFoodIndex ? '16px' : '13px';
+        item.style.boxShadow = i === selectedFoodIndex
+            ? '0 8px 24px rgba(0, 0, 0, 0.22)'
+            : '0 4px 12px rgba(0, 0, 0, 0.12)';
+
+        item.style.transform = `
+            translateY(${distanceFromSelected * 8}px)
+            scale(${i === selectedFoodIndex ? 1.12 : 0.92})
+        `;
+
+        item.style.opacity = i === selectedFoodIndex ? '1' : '0.65';
+
+        foodSelector.appendChild(item);
+    }
+}
+
+updateFoodSelectorUI();
 
 const grabbableObjects = [];
 
@@ -116,36 +251,6 @@ const catBaseScale = new THREE.Vector3(3, 3, 3);
 const catBaseRotation = new THREE.Euler(0, 0, 0);
 const catHeadBaseRotation = new THREE.Euler(0, 0, 0);
 
-//pointer controls
-const overlay = document.querySelector('#overlay');
-const crosshair = document.querySelector('#crosshair');
-
-const pointerControls = new PointerLockControls(camera, document.body);
-
-scene.add(pointerControls.object);
-
-overlay.addEventListener('click', () => {
-
-    pointerControls.lock();
-
-});
-
-pointerControls.addEventListener('lock', () => {
-
-    overlay.style.display = 'none';
-
-    crosshair.style.display = 'block';
-
-});
-
-pointerControls.addEventListener('unlock', () => {
-
-    overlay.style.display = 'flex';
-
-    crosshair.style.display = 'none';
-
-});
-
 const keys = {
     w: false,
     a: false,
@@ -173,6 +278,46 @@ document.addEventListener('keyup', (e) => {
         keys[key] = false;
     }
 
+});
+
+document.addEventListener('keydown', (event) => {
+
+    const key = event.key.toLowerCase();
+
+    if (key === 'q') {
+
+        selectedFoodIndex--;
+
+        if (selectedFoodIndex < 0) {
+            selectedFoodIndex = foodTypes.length - 1;
+        }
+
+        updateFoodSelectorUI();
+
+        return;
+    }
+
+    if (key === 'e') {
+
+        selectedFoodIndex++;
+
+        if (selectedFoodIndex >= foodTypes.length) {
+            selectedFoodIndex = 0;
+        }
+
+        updateFoodSelectorUI();
+
+        return;
+    }
+
+    if (event.code === 'Space') {
+
+        event.preventDefault();
+
+        spawnSelectedFood();
+
+        return;
+    }
 });
 
 //
@@ -374,6 +519,41 @@ gltfLoader.load(
     }
 );
 
+function registerFoodTemplate(type, mesh, options) {
+
+    //
+    // IMPORTANT:
+    // Store a clean visual clone before Rapier collider data gets attached.
+    // Do not store the live mesh itself, because userData.collider creates
+    // circular references that break .clone().
+    //
+    const cleanSource = mesh.clone(true);
+
+    cleanSource.userData = {
+        friendshipValue: options.friendshipValue
+    };
+
+    cleanSource.traverse((child) => {
+
+        if (!child.isMesh) return;
+
+        child.userData = {};
+        child.castShadow = true;
+        child.receiveShadow = true;
+    });
+
+    foodTemplates[type] = {
+        source: cleanSource,
+        scale: options.scale.clone(),
+        colliderHalfSize: options.colliderHalfSize.clone(),
+        friendshipValue: options.friendshipValue,
+        density: options.density ?? 1.0,
+        friction: options.friction ?? 0.8,
+        linearDamping: options.linearDamping ?? 0.35,
+        angularDamping: options.angularDamping ?? 0.6
+    };
+}
+
 //add bread
 let breadMesh;
 let breadBody;
@@ -390,6 +570,18 @@ gltfLoader.load(
         breadMesh.position.set(5, 3, 3.2);
 
         breadMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+
+        registerFoodTemplate(
+        'bread',
+        breadMesh,
+        {
+            scale: new THREE.Vector3(1, 1, 1),
+            colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
+            friendshipValue: 25,
+            density: 1.0,
+            friction: 0.8
+        }
+    );
 
         scene.add(breadMesh);
 
@@ -446,6 +638,15 @@ gltfLoader.load(
         fishMesh.position.set(2, 3, 0);
 
         fishMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+        registerFoodTemplate(
+            'fish',
+            fishMesh,
+            {
+                scale: new THREE.Vector3(2, 2, 2),
+                colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
+                friendshipValue: 25
+            }
+        );
         scene.add(fishMesh);
 
         //
@@ -491,6 +692,15 @@ gltfLoader.load(
         milkMesh.position.set(2, 3, 0);
 
         milkMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+        registerFoodTemplate(
+            'milk',
+            milkMesh,
+            {
+                scale: new THREE.Vector3(8, 8, 8),
+                colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
+                friendshipValue: 25
+            }
+        );
         scene.add(milkMesh);
 
         // PHYSICS
@@ -534,6 +744,17 @@ gltfLoader.load(
         birdMesh.position.set(2, 3, 0);
 
         birdMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+
+        registerFoodTemplate(
+            'bird',
+            birdMesh,
+            {
+                scale: new THREE.Vector3(8, 8, 8),
+                colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
+                friendshipValue: 25
+            }
+        );
+
         scene.add(birdMesh);
 
         // PHYSICS
@@ -577,6 +798,17 @@ gltfLoader.load(
         cucMesh.position.set(2, 3, 0);
 
         cucMesh.userData.friendshipValue = -15; //GOOD obj //bad=-10
+
+        registerFoodTemplate(
+            'cucumber',
+            cucMesh,
+            {
+                scale: new THREE.Vector3(8, 8, 8),
+                colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
+                friendshipValue: -15
+            }
+        );
+
         scene.add(cucMesh);
 
         // PHYSICS
@@ -620,6 +852,17 @@ gltfLoader.load(
         mealMesh.position.set(2, 3, 0);
 
         mealMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+
+        registerFoodTemplate(
+            'meal',
+            mealMesh,
+            {
+                scale: new THREE.Vector3(0.03, 0.03, 0.03),
+                colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
+                friendshipValue: 25
+            }
+        );
+
         scene.add(mealMesh);
 
         // PHYSICS
@@ -663,6 +906,17 @@ gltfLoader.load(
         waterMesh.position.set(2, 3, 0);
 
         waterMesh.userData.friendshipValue = -10; //GOOD obj //bad=-10
+
+        registerFoodTemplate(
+            'water',
+            waterMesh,
+            {
+                scale: new THREE.Vector3(1, 1, 1),
+                colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
+                friendshipValue: -10
+            }
+        );
+
         scene.add(waterMesh);
 
         // PHYSICS
@@ -689,6 +943,112 @@ gltfLoader.load(
         });
     }
 );
+
+function spawnSelectedFood() {
+
+    const foodType = foodTypes[selectedFoodIndex];
+    const template = foodTemplates[foodType];
+
+    if (!template) {
+        console.warn(`Food template not ready yet: ${foodType}`);
+        return;
+    }
+
+    const foodMesh = template.source.clone(true);
+
+    foodMesh.userData = {
+        friendshipValue: template.friendshipValue
+    };
+
+    foodMesh.traverse((child) => {
+
+        if (!child.isMesh) return;
+
+        child.userData = {};
+        child.castShadow = true;
+        child.receiveShadow = true;
+    });
+
+    foodMesh.scale.copy(template.scale);
+    foodMesh.userData.friendshipValue = template.friendshipValue;
+
+    foodMesh.traverse((child) => {
+
+        if (!child.isMesh) return;
+
+        child.castShadow = true;
+        child.receiveShadow = true;
+    });
+
+    camera.getWorldDirection(cameraForward);
+
+    const spawnPosition = new THREE.Vector3()
+        .copy(camera.position)
+        .addScaledVector(cameraForward, 8);
+
+    spawnPosition.y = Math.max(spawnPosition.y, FLOOR_Y + 7);
+
+    foodMesh.position.copy(spawnPosition);
+
+    scene.add(foodMesh);
+
+    const bodyDesc = RAPIER.RigidBodyDesc
+        .dynamic()
+        .setTranslation(
+            spawnPosition.x,
+            spawnPosition.y,
+            spawnPosition.z
+        )
+        .setLinearDamping(template.linearDamping)
+        .setAngularDamping(template.angularDamping);
+
+    const foodBody = world.createRigidBody(bodyDesc);
+
+    const colliderDesc = RAPIER.ColliderDesc
+        .cuboid(
+            template.colliderHalfSize.x,
+            template.colliderHalfSize.y,
+            template.colliderHalfSize.z
+        )
+        .setDensity(template.density)
+        .setFriction(template.friction);
+
+    const colliderRef = world.createCollider(
+        colliderDesc,
+        foodBody
+    );
+
+    foodMesh.userData.collider = colliderRef;
+
+    const throwVelocity = new THREE.Vector3()
+        .copy(cameraForward)
+        .multiplyScalar(18);
+
+    throwVelocity.y += 4;
+
+    foodBody.setLinvel(
+        {
+            x: throwVelocity.x,
+            y: throwVelocity.y,
+            z: throwVelocity.z
+        },
+        true
+    );
+
+    foodBody.setAngvel(
+        {
+            x: THREE.MathUtils.randFloatSpread(5),
+            y: THREE.MathUtils.randFloatSpread(5),
+            z: THREE.MathUtils.randFloatSpread(5)
+        },
+        true
+    );
+
+    grabbableObjects.push({
+        mesh: foodMesh,
+        body: foodBody
+    });
+}
 
 function addDebugSphere(radius, x, y, z, color = 0xff00ff) {
 
@@ -813,7 +1173,7 @@ const ROOM_SIZE_Z = 38;
 const FLOOR_Y = -3;
 
 const FLOOR_THICKNESS = 0.5;
-const WALL_HEIGHT = 20;
+const WALL_HEIGHT = 25;
 const WALL_THICKNESS = 0.5;
 
 const roomCollisionBody = world.createRigidBody(
@@ -1102,6 +1462,45 @@ furnitureColliders.push(
         -16,
         FLOOR_Y + 3.5,
         -5.3,
+        0xaa66ff
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'leftbackwall',
+        38,
+        27,
+        2,
+        0.5,
+        FLOOR_Y + 10,
+        24,
+        0xaa66ff
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'rightbackwall',
+        2,
+        27,
+        38,
+        20.5,
+        FLOOR_Y + 10,
+        4.5,
+        0xaa66ff
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'ceiling',
+        38,
+        2,
+        38,
+        0.5,
+        FLOOR_Y + 24,
+        4.5,
         0xaa66ff
     )
 );
@@ -1398,36 +1797,236 @@ function recoverCatFromRagdoll() {
 //
 // GRAB SYSTEM
 //
+//
+// MOUSE GRAB SYSTEM
+//
 const raycaster = new THREE.Raycaster();
-const centre = new THREE.Vector2(0, 0);
-const cameraForward = new THREE.Vector3();
+
+const mouse = new THREE.Vector2();
+
+const dragPlane = new THREE.Plane();
+const dragPoint = new THREE.Vector3();
+const dragOffset = new THREE.Vector3();
+
 const previousGrabPosition = new THREE.Vector3();
 const currentGrabPosition = new THREE.Vector3();
 const grabVelocity = new THREE.Vector3();
 const targetPosition = new THREE.Vector3();
 
+const cameraForward = new THREE.Vector3();
+
+const orbitAdjustSpherical = new THREE.Spherical();
+const orbitAdjustOffset = new THREE.Vector3();
+
+let lastMouseX = 0;
+let lastMouseY = 0;
+
 let isMouseDown = false;
 let isGrabbing = false;
-let grabDistance = 4;
 let isCatGrabbed = false;
+let isCameraAdjustingWhileGrabbed = false;
 
-const maxGrabDistance = 7;
-const grabPullStrength = 14;
-const throwStrength = 10;
-
-//
-// INPUT
-//
 let grabbedBody = null;
 let grabbedMesh = null;
 
-document.addEventListener('mousedown', (event) => {
+const grabPullStrength = 14;
+const throwStrength = 1.0;
+
+function updateMouseFromEvent(event) {
+
+    const rect = renderer.domElement.getBoundingClientRect();
+
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function setDragPlaneThroughPoint(point) {
+
+    camera.getWorldDirection(cameraForward);
+
+    dragPlane.setFromNormalAndCoplanarPoint(
+        cameraForward,
+        point
+    );
+}
+
+function getMousePointOnDragPlane() {
+
+    raycaster.setFromCamera(mouse, camera);
+
+    const hit = raycaster.ray.intersectPlane(
+        dragPlane,
+        dragPoint
+    );
+
+    return hit;
+}
+
+function limitVelocity(vector, maxLength) {
+
+    if (vector.length() > maxLength) {
+        vector.setLength(maxLength);
+    }
+}
+
+function getHeldObjectPosition() {
+
+    if (isCatGrabbed && catMode === 'grabbed' && catMesh) {
+        return catMesh.position.clone();
+    }
+
+    if (grabbedBody) {
+
+        const position = grabbedBody.translation();
+
+        return new THREE.Vector3(
+            position.x,
+            position.y,
+            position.z
+        );
+    }
+
+    return null;
+}
+
+function refreshDragOffsetFromHeldObject() {
+
+    const heldPosition = getHeldObjectPosition();
+
+    if (!heldPosition) return;
+
+    setDragPlaneThroughPoint(heldPosition);
+
+    const mouseWorldPoint = getMousePointOnDragPlane();
+
+    if (!mouseWorldPoint) return;
+
+    dragOffset
+        .copy(heldPosition)
+        .sub(mouseWorldPoint);
+
+    previousGrabPosition.copy(heldPosition);
+    currentGrabPosition.copy(heldPosition);
+
+    grabVelocity.set(0, 0, 0);
+}
+
+function orbitCameraWhileGrabbing(deltaX, deltaY) {
+
+    orbitAdjustOffset
+        .copy(camera.position)
+        .sub(controls.target);
+
+    orbitAdjustSpherical.setFromVector3(orbitAdjustOffset);
+
+    orbitAdjustSpherical.theta -= deltaX * 0.006 * controls.rotateSpeed;
+    orbitAdjustSpherical.phi -= deltaY * 0.006 * controls.rotateSpeed;
+
+    orbitAdjustSpherical.phi = THREE.MathUtils.clamp(
+        orbitAdjustSpherical.phi,
+        controls.minPolarAngle,
+        controls.maxPolarAngle
+    );
+
+    orbitAdjustSpherical.makeSafe();
+
+    orbitAdjustOffset.setFromSpherical(orbitAdjustSpherical);
+
+    camera.position
+        .copy(controls.target)
+        .add(orbitAdjustOffset);
+
+    camera.lookAt(controls.target);
+
+    controls.update();
+}
+
+function dollyCameraWhileGrabbing(deltaY) {
+
+    orbitAdjustOffset
+        .copy(camera.position)
+        .sub(controls.target);
+
+    let distance = orbitAdjustOffset.length();
+
+    distance += deltaY * 0.08 * controls.zoomSpeed;
+
+    distance = THREE.MathUtils.clamp(
+        distance,
+        controls.minDistance,
+        controls.maxDistance
+    );
+
+    orbitAdjustOffset.setLength(distance);
+
+    camera.position
+        .copy(controls.target)
+        .add(orbitAdjustOffset);
+
+    camera.lookAt(controls.target);
+
+    controls.update();
+}
+
+renderer.domElement.addEventListener('mousemove', (event) => {
+
+    updateMouseFromEvent(event);
+
+    const deltaX = event.clientX - lastMouseX;
+    const deltaY = event.clientY - lastMouseY;
+
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
+
+    if (!isGrabbing || !isMouseDown) {
+        isCameraAdjustingWhileGrabbed = false;
+        return;
+    }
+
+    const rightMouseHeld = (event.buttons & 2) !== 0;
+    const middleMouseHeld = (event.buttons & 4) !== 0;
+
+    if (rightMouseHeld) {
+
+        isCameraAdjustingWhileGrabbed = true;
+
+        orbitCameraWhileGrabbing(deltaX, deltaY);
+
+        refreshDragOffsetFromHeldObject();
+
+        return;
+    }
+
+    if (middleMouseHeld) {
+
+        isCameraAdjustingWhileGrabbed = true;
+
+        dollyCameraWhileGrabbing(deltaY);
+
+        refreshDragOffsetFromHeldObject();
+
+        return;
+    }
+
+    isCameraAdjustingWhileGrabbed = false;
+});
+
+renderer.domElement.addEventListener('mousedown', (event) => {
+
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
+
+    if (event.button === 1 || event.button === 2) {
+        event.preventDefault();
+    }
 
     if (event.button !== 0) return;
 
+    updateMouseFromEvent(event);
+
     isMouseDown = true;
 
-    raycaster.setFromCamera(centre, camera);
+    raycaster.setFromCamera(mouse, camera);
 
     const meshes = [];
 
@@ -1446,10 +2045,13 @@ document.addEventListener('mousedown', (event) => {
 
     if (hits.length === 0) return;
 
-    if (hits[0].distance > maxGrabDistance) return;
+    const hit = hits[0];
 
+    //
+    // CHECK IF CAT WAS CLICKED
+    //
     let hitCat = false;
-    let currentHit = hits[0].object;
+    let currentHit = hit.object;
 
     while (currentHit) {
 
@@ -1463,38 +2065,38 @@ document.addEventListener('mousedown', (event) => {
 
     if (hitCat) {
 
+
         isGrabbing = true;
         isCatGrabbed = true;
         catMode = 'grabbed';
 
-        catGrabDistance = THREE.MathUtils.clamp(
-            hits[0].distance,
-            2,
-            maxGrabDistance
-        );
+        catWander.moving = false;
+
+        setDragPlaneThroughPoint(catMesh.position);
+
+        getMousePointOnDragPlane();
+
+        dragOffset
+            .copy(catMesh.position)
+            .sub(dragPoint);
 
         previousGrabPosition.copy(catMesh.position);
         currentGrabPosition.copy(catMesh.position);
 
-        catWander.moving = false;
+        renderer.domElement.style.cursor = 'grabbing';
 
         return;
     }
 
-    isGrabbing = true;
-
-    grabDistance = THREE.MathUtils.clamp(
-        hits[0].distance,
-        2,
-        maxGrabDistance
-    );
-
     //
-    // FIND HIT OBJECT
+    // OTHERWISE CHECK NORMAL GRABBABLE OBJECTS
     //
+    grabbedBody = null;
+    grabbedMesh = null;
+
     for (const obj of grabbableObjects) {
 
-        let current = hits[0].object;
+        let current = hit.object;
 
         while (current) {
 
@@ -1508,34 +2110,57 @@ document.addEventListener('mousedown', (event) => {
 
             current = current.parent;
         }
-    }
 
+        if (grabbedBody) break;
+    }
 
     if (!grabbedBody) return;
 
-    const position = grabbedBody.translation();
+    isGrabbing = true;
 
-    previousGrabPosition.set(
-        position.x,
-        position.y,
-        position.z
+    const bodyPosition = grabbedBody.translation();
+
+    currentGrabPosition.set(
+        bodyPosition.x,
+        bodyPosition.y,
+        bodyPosition.z
     );
 
-    currentGrabPosition.copy(previousGrabPosition);
+    previousGrabPosition.copy(currentGrabPosition);
 
-    grabbedBody.setAngvel({
-        x: 0,
-        y: 0,
-        z: 0
-    }, true);
+    setDragPlaneThroughPoint(currentGrabPosition);
+
+    getMousePointOnDragPlane();
+
+    dragOffset
+        .copy(currentGrabPosition)
+        .sub(dragPoint);
+
+    grabbedBody.setAngvel(
+        {
+            x: 0,
+            y: 0,
+            z: 0
+        },
+        true
+    );
+
+    renderer.domElement.style.cursor = 'grabbing';
 });
 
-document.addEventListener('mouseup', (event) => {
+renderer.domElement.addEventListener('mouseup', (event) => {
 
     if (event.button !== 0) return;
 
     isMouseDown = false;
+    isCameraAdjustingWhileGrabbed = false;
 
+
+    renderer.domElement.style.cursor = 'grab';
+
+    //
+    // THROW CAT
+    //
     if (isCatGrabbed && catMode === 'grabbed' && catMesh) {
 
         if (badSound.isPlaying) {
@@ -1546,17 +2171,17 @@ document.addEventListener('mouseup', (event) => {
 
         updateFriendship(-10);
 
-        camera.getWorldDirection(cameraForward);
-
         createCatThrowBody();
+
+        limitVelocity(grabVelocity, 18);
 
         if (catThrowBody) {
 
             catThrowBody.setLinvel(
                 {
-                    x: grabVelocity.x + cameraForward.x * throwStrength,
-                    y: grabVelocity.y + cameraForward.y * throwStrength + 2.5,
-                    z: grabVelocity.z + cameraForward.z * throwStrength
+                    x: grabVelocity.x * throwStrength,
+                    y: grabVelocity.y * throwStrength + 2.5,
+                    z: grabVelocity.z * throwStrength
                 },
                 true
             );
@@ -1573,23 +2198,28 @@ document.addEventListener('mouseup', (event) => {
 
         catRagdollTimer = 0;
         catMode = 'ragdoll';
+
         isCatGrabbed = false;
         isGrabbing = false;
 
         return;
     }
 
+    //
+    // THROW NORMAL OBJECT
+    //
     if (!isGrabbing || !grabbedBody) return;
 
-    camera.getWorldDirection(cameraForward);
+    limitVelocity(grabVelocity, 18);
 
-    const releaseVelocity = {
-        x: grabVelocity.x + cameraForward.x * throwStrength,
-        y: grabVelocity.y + cameraForward.y * throwStrength + 1.5,
-        z: grabVelocity.z + cameraForward.z * throwStrength
-    };
-
-    grabbedBody.setLinvel(releaseVelocity, true);
+    grabbedBody.setLinvel(
+        {
+            x: grabVelocity.x * throwStrength,
+            y: grabVelocity.y * throwStrength + 1.2,
+            z: grabVelocity.z * throwStrength
+        },
+        true
+    );
 
     isGrabbing = false;
 
@@ -1597,46 +2227,72 @@ document.addEventListener('mouseup', (event) => {
     grabbedMesh = null;
 });
 
-//
-// UPDATE GRAB
-//
 function updateGrab(delta) {
 
+    if (!isGrabbing || !isMouseDown) return;
+
+    if (isCameraAdjustingWhileGrabbed) return;
+
+    //
+    // Keep the drag plane aligned with the current camera angle.
+    // This matters now that right click and middle mouse can move the camera
+    // while an item is still being held.
+    //
+    if (isCatGrabbed && catMode === 'grabbed' && catMesh) {
+
+        setDragPlaneThroughPoint(catMesh.position);
+
+    } else if (grabbedBody) {
+
+        const objectPosition = grabbedBody.translation();
+
+        currentGrabPosition.set(
+            objectPosition.x,
+            objectPosition.y,
+            objectPosition.z
+        );
+
+        setDragPlaneThroughPoint(currentGrabPosition);
+    }
+
+    const mouseWorldPoint = getMousePointOnDragPlane();
+
+    if (!mouseWorldPoint) return;
+
+    targetPosition
+        .copy(mouseWorldPoint)
+        .add(dragOffset);
+
+    //
+    // MOVE CAT WHILE HELD
+    //
     if (isCatGrabbed && catMode === 'grabbed') {
 
-        if (!isMouseDown || !catMesh) return;
-
-        camera.getWorldDirection(cameraForward);
-
-        targetPosition
-            .copy(camera.position)
-            .addScaledVector(cameraForward, catGrabDistance);
+        if (!catMesh) return;
 
         currentGrabPosition.copy(catMesh.position);
 
-        catMesh.position.lerp(targetPosition, 0.35);
+        catMesh.position.lerp(
+            targetPosition,
+            0.35
+        );
 
         grabVelocity
-            .copy(currentGrabPosition)
+            .copy(catMesh.position)
             .sub(previousGrabPosition)
             .divideScalar(Math.max(delta, 0.001));
 
-        previousGrabPosition.copy(currentGrabPosition);
+        previousGrabPosition.copy(catMesh.position);
 
         syncCatColliderToCat();
 
         return;
     }
 
+    //
+    // MOVE PHYSICS OBJECT WHILE HELD
+    //
     if (!grabbedBody) return;
-
-    if (!isGrabbing || !isMouseDown) return;
-
-    camera.getWorldDirection(cameraForward);
-
-    targetPosition
-        .copy(camera.position)
-        .addScaledVector(cameraForward, grabDistance);
 
     const objectPosition = grabbedBody.translation();
 
@@ -1652,13 +2308,19 @@ function updateGrab(delta) {
         z: (targetPosition.z - objectPosition.z) * grabPullStrength
     };
 
-    grabbedBody.setLinvel(desiredVelocity, true);
+    grabbedBody.setLinvel(
+        desiredVelocity,
+        true
+    );
 
-    grabbedBody.setAngvel({
-        x: 0,
-        y: 0,
-        z: 0
-    }, true);
+    grabbedBody.setAngvel(
+        {
+            x: 0,
+            y: 0,
+            z: 0
+        },
+        true
+    );
 
     grabVelocity
         .copy(currentGrabPosition)
@@ -1959,6 +2621,21 @@ function checkFriendshipCollisions() {
 
             triggeredObjects.add(obj.mesh);
 
+            //
+            // If the object is being held while it is eaten,
+            // release it before removing its Rapier body.
+            //
+            if (grabbedBody === obj.body) {
+
+                isMouseDown = false;
+                isGrabbing = false;
+
+                grabbedBody = null;
+                grabbedMesh = null;
+
+                renderer.domElement.style.cursor = 'grab';
+            }
+
             updateFriendship(
                 obj.mesh.userData.friendshipValue
             );
@@ -2256,7 +2933,6 @@ function animate() {
     requestAnimationFrame(animate);
 
     const delta = Math.min(clock.getDelta(), 0.05);
-    updateMovement(delta);
 
     updateGrab(delta);
 
@@ -2319,6 +2995,17 @@ function animate() {
     //
     for (const obj of objectsToRemove) {
 
+        if (grabbedBody === obj.body) {
+
+            isMouseDown = false;
+            isGrabbing = false;
+
+            grabbedBody = null;
+            grabbedMesh = null;
+
+            renderer.domElement.style.cursor = 'grab';
+        }
+
         scene.remove(obj.mesh);
 
         world.removeRigidBody(obj.body);
@@ -2355,8 +3042,7 @@ function animate() {
 
     syncGrabbableObjects();
 
-
-
+    controls.update();
 
     renderer.render(scene, camera);
 }
