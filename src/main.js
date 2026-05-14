@@ -1215,6 +1215,8 @@ furnitureColliders.push(
 //HERE IS WHERE THE FUN BEGINS AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 function createCatThrowBody() {
 
+
+
     if (!catMesh) return;
 
     if (catThrowBody) {
@@ -1388,7 +1390,7 @@ function recoverCatFromRagdoll() {
     catWander.moving = false;
 
     resetCatBonesToBase();
-    
+
     catMode = 'walking';
     isCatGrabbed = false;
 }
@@ -1478,7 +1480,7 @@ document.addEventListener('mousedown', (event) => {
 
         return;
     }
-    
+
     isGrabbing = true;
 
     grabDistance = THREE.MathUtils.clamp(
@@ -1535,6 +1537,14 @@ document.addEventListener('mouseup', (event) => {
     isMouseDown = false;
 
     if (isCatGrabbed && catMode === 'grabbed' && catMesh) {
+
+        if (badSound.isPlaying) {
+            badSound.stop();
+        }
+
+        badSound.play();
+
+        updateFriendship(-10);
 
         camera.getWorldDirection(cameraForward);
 
