@@ -24,34 +24,22 @@ const renderer = createRenderer(canvas);
 const grabbableObjects = [];
 
 let friendship = 0;
-let friendshipComplete = false;
-
 
 const friendshipBar = document.querySelector('#friendship-bar');
 
 const objectsToRemove = [];
 
-// AUDIO
-//
-const listener = new THREE.AudioListener();
+let catMesh = null;
+let catHeadMesh = null;
 
-camera.add(listener);
+let catReactionTime = 0;
+let catReactionType = null;
 
-const successSound = new THREE.Audio(listener);
+let catSquishStrength = 0;
 
-const audioLoader = new THREE.AudioLoader();
-
-audioLoader.load(
-    '../assets/audio/simple-and-clean-melody.mp3',
-
-    (buffer) => {
-
-        successSound.setBuffer(buffer);
-
-        successSound.setVolume(0.7);
-    }
-);
-
+const catBaseScale = new THREE.Vector3(3, 3, 3);
+const catBaseRotation = new THREE.Euler(0, 0, 0);
+const catHeadBaseRotation = new THREE.Euler(0, 0, 0);
 
 //pointer controls
 const overlay = document.querySelector('#overlay');
@@ -143,19 +131,35 @@ const gltfLoader = new GLTFLoader();
 const textureLoader = new THREE.TextureLoader();
 
 gltfLoader.load(
-    '../models/cat/cat.gltf',
+    '../models/cat/FPcat.gltf',
 
     (gltf) => {
 
         const cat = gltf.scene;
+        
+        catMesh = cat;
+
+        catBaseRotation.copy(cat.rotation);
+
+        cat.traverse((child) => {
+
+            if (!child.name) return;
+
+            const name = child.name.toLowerCase();
+
+            if (name.includes('head')) {
+                catHeadMesh = child;
+                catHeadBaseRotation.copy(child.rotation);
+            }
+});
 
         //
         // LOAD CAT TEXTURE
         //
         const catTexture = textureLoader.load(
-            '../assets/textures/Cat tex.png'
+            '../assets/textures/Cat_tex1.png'
         );
-
+        catTexture.flipY = false;
         //
         // APPLY TEXTURE TO ALL CAT MESHES
         //
@@ -192,13 +196,13 @@ gltfLoader.load(
             .cuboid(1.5, 1.5, 1.5)
             .setSensor(true);
 
-        world.createCollider(catCollider, catBody);
+        const catColliderRef = world.createCollider(catCollider, catBody);
 
         //
         // SAVE REFERENCES
         //
         cat.userData.rigidBody = catBody;
-        cat.userData.collider = catCollider;
+        cat.userData.collider = catColliderRef;
 
         window.catBody = catBody;
     },
@@ -296,7 +300,7 @@ gltfLoader.load(
         breadMesh.scale.set(1, 1, 1);
         breadMesh.position.set(5, 3, 3.2);
 
-        breadMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+        breadMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
 
         scene.add(breadMesh);
 
@@ -352,7 +356,7 @@ gltfLoader.load(
         fishMesh.scale.set(2, 2, 2);
         fishMesh.position.set(2, 3, 0);
 
-        fishMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+        fishMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
         scene.add(fishMesh);
 
         //
@@ -397,7 +401,7 @@ gltfLoader.load(
         milkMesh.scale.set(8, 8, 8);
         milkMesh.position.set(2, 3, 0);
 
-        milkMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+        milkMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
         scene.add(milkMesh);
 
         // PHYSICS
@@ -440,7 +444,7 @@ gltfLoader.load(
         birdMesh.scale.set(8, 8, 8);
         birdMesh.position.set(2, 3, 0);
 
-        birdMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
+        birdMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
         scene.add(birdMesh);
 
         // PHYSICS
@@ -569,7 +573,7 @@ gltfLoader.load(
         waterMesh.scale.set(1, 1, 1);
         waterMesh.position.set(2, 3, 0);
 
-        waterMesh.userData.friendshipValue = -25; //GOOD obj //bad=-10
+        waterMesh.userData.friendshipValue = -10; //GOOD obj //bad=-10
         scene.add(waterMesh);
 
         // PHYSICS
@@ -881,24 +885,98 @@ function updateFriendship(change) {
 
     friendship = Math.max(0, Math.min(100, friendship));
 
-    //
-    // PLAY SOUND AT MAX FRIENDSHIP
-    //
-    if (friendship >= 100 && !friendshipComplete) {
-
-        friendshipComplete = true;
-
-        successSound.play();
-
-        console.log('Friendship MAXED');
-    }
-
     friendshipBar.style.width = `${friendship}%`;
 
     // color feedback
     friendshipBar.style.background =
         'linear-gradient(to right, #cff882, #7bcf48)';
     console.log('Friendship:', friendship);
+}
+
+function triggerCatReaction(friendshipValue) {
+
+    catReactionTime = 0.45;
+
+    if (friendshipValue > 0) {
+
+        catReactionType = 'happy';
+        catSquishStrength = 0.18;
+
+    } else {
+
+        catReactionType = 'yuck';
+        catSquishStrength = 0;
+    }
+}
+
+function updateCatReaction(delta) {
+
+    if (!catMesh) return;
+
+    const headTarget = catHeadMesh || catMesh;
+
+    if (catReactionTime > 0) {
+
+        catReactionTime -= delta;
+
+        const progress = catReactionTime / 0.45;
+
+        if (catReactionType === 'happy') {
+
+            const pulse = Math.sin(catReactionTime * 35) * catSquishStrength;
+
+            catMesh.scale.set(
+                catBaseScale.x + pulse,
+                catBaseScale.y - pulse * 0.7,
+                catBaseScale.z + pulse
+            );
+
+            catMesh.rotation.z = catBaseRotation.z + pulse * 0.08;
+
+            if (catHeadMesh) {
+                catHeadMesh.rotation.copy(catHeadBaseRotation);
+            }
+
+        }
+
+        if (catReactionType === 'yuck') {
+
+            const shake = Math.sin(catReactionTime * 55) * 0.25 * progress;
+            const lookDown = Math.sin(progress * Math.PI) * 0.35;
+
+            catMesh.scale.lerp(catBaseScale, 0.2);
+
+            if (catHeadMesh) {
+
+                catHeadMesh.rotation.x = catHeadBaseRotation.x + lookDown;
+                catHeadMesh.rotation.y = catHeadBaseRotation.y + shake;
+                catHeadMesh.rotation.z = catHeadBaseRotation.z;
+
+            } else {
+
+                catMesh.rotation.x = catBaseRotation.x + lookDown * 0.35;
+                catMesh.rotation.y = catBaseRotation.y + shake;
+                catMesh.rotation.z = catBaseRotation.z;
+            }
+        }
+
+    } else {
+
+        catReactionType = null;
+
+        catMesh.scale.lerp(catBaseScale, 0.12);
+
+        catMesh.rotation.x += (catBaseRotation.x - catMesh.rotation.x) * 0.12;
+        catMesh.rotation.y += (catBaseRotation.y - catMesh.rotation.y) * 0.12;
+        catMesh.rotation.z += (catBaseRotation.z - catMesh.rotation.z) * 0.12;
+
+        if (catHeadMesh) {
+
+            catHeadMesh.rotation.x += (catHeadBaseRotation.x - catHeadMesh.rotation.x) * 0.12;
+            catHeadMesh.rotation.y += (catHeadBaseRotation.y - catHeadMesh.rotation.y) * 0.12;
+            catHeadMesh.rotation.z += (catHeadBaseRotation.z - catHeadMesh.rotation.z) * 0.12;
+        }
+    }
 }
 
         const triggeredObjects = new Set();
@@ -938,6 +1016,10 @@ function updateFriendship(change) {
                     triggeredObjects.add(obj.mesh);
 
                     updateFriendship(
+                        obj.mesh.userData.friendshipValue
+                    );
+
+                    triggerCatReaction(
                         obj.mesh.userData.friendshipValue
                     );
 
@@ -1006,6 +1088,8 @@ function animate() {
     objectsToRemove.length = 0;
 
     checkFriendshipCollisions();
+
+    updateCatReaction(delta);
 
     syncGrabbableObjects();
 
