@@ -194,7 +194,7 @@ gltfLoader.load(
         });
 
         cat.scale.set(3, 3, 3);
-        cat.position.set(-3, -3, -3);
+        cat.position.set(0, -3, 3);
 
         scene.add(cat);
 
@@ -203,7 +203,7 @@ gltfLoader.load(
         //
         const catBodyDesc = RAPIER.RigidBodyDesc
             .fixed()
-            .setTranslation(-3, -3, -3);
+            .setTranslation(0, -3, 3);
 
         const catBody = world.createRigidBody(catBodyDesc);
 
@@ -246,7 +246,7 @@ gltfLoader.load(
         const room = gltf.scene;
 
         room.scale.set(0.1, 0.1, 0.1);
-        room.position.set(0, 0, 3.2);
+        room.position.set(0, -4.5, 3.2);
 
         scene.add(room);
 
@@ -266,31 +266,6 @@ gltfLoader.load(
 
             child.castShadow = true;
             child.receiveShadow = true;
-
-            const geometry = child.geometry;
-
-            // ensure geometry exists
-            if (!geometry.attributes.position) return;
-
-            const vertices = geometry.attributes.position.array;
-
-            // trimesh requires indexed geometry
-            if (!geometry.index) return;
-
-            const indices = geometry.index.array;
-
-            //
-            // CREATE TRIMESH COLLIDER
-            //
-            const colliderDesc = RAPIER.ColliderDesc.trimesh(
-                vertices,
-                indices
-            );
-
-            world.createCollider(
-                colliderDesc,
-                roomBody
-            );
         });
 
         console.log('Room + colliders loaded');
@@ -619,50 +594,508 @@ gltfLoader.load(
     }
 );
 
+function addDebugBox(width, height, depth, x, y, z, color = 0x00ff99) {
 
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+
+    const material = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0,
+        wireframe: false
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+
+    mesh.position.set(x, y, z);
+
+    scene.add(mesh);
+
+    return mesh;
+}
+
+function addFurnitureCollider(
+    name,
+    width,
+    height,
+    depth,
+    x,
+    y,
+    z,
+    color = 0xffcc00,
+    rotationX = 0,
+    rotationY = 0,
+    rotationZ = 0
+) {
+    const quaternion = new THREE.Quaternion();
+
+    quaternion.setFromEuler(
+        new THREE.Euler(
+            rotationX,
+            rotationY,
+            rotationZ
+        )
+    );
+
+    const body = world.createRigidBody(
+        RAPIER.RigidBodyDesc
+            .fixed()
+            .setTranslation(x, y, z)
+            .setRotation({
+                x: quaternion.x,
+                y: quaternion.y,
+                z: quaternion.z,
+                w: quaternion.w
+            })
+    );
+
+    const collider = RAPIER.ColliderDesc
+        .cuboid(
+            width / 2,
+            height / 2,
+            depth / 2
+        )
+        .setFriction(0.8);
+
+    world.createCollider(collider, body);
+
+    const debugMesh = addDebugBox(
+        width,
+        height,
+        depth,
+        x,
+        y,
+        z,
+        color
+    );
+
+    debugMesh.rotation.set(
+        rotationX,
+        rotationY,
+        rotationZ
+    );
+
+    debugMesh.name = `${name}_debug`;
+
+    return {
+        name,
+        body,
+        debugMesh
+    };
+}
 
 //
-//FLOOR
+// INVISIBLE ROOM COLLISION BORDERS
 //
 
-const floorGeometry = new THREE.BoxGeometry(30, 0.4, 30);
-const floorMaterial = new THREE.MeshLambertMaterial({
-    map: new THREE.TextureLoader().load("../assets/textures/grass.jpg"),
-});
-const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+const ROOM_CENTER_X = 1;
+const ROOM_CENTER_Z = 4;
 
-floor.position.y = -8.5;
-floor.position.x = -3;
+const ROOM_SIZE_X = 38;
+const ROOM_SIZE_Z = 38;
 
-floor.receiveShadow = true;
-scene.add(floor);
+const FLOOR_Y = -3;
 
-const floorBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.2, 0);
-const floorBody = world.createRigidBody(floorBodyDesc);
-const floorCollider = RAPIER.ColliderDesc.cuboid(15, 0.2, 15).setFriction(1.0);
-world.createCollider(floorCollider, floorBody);
+const FLOOR_THICKNESS = 0.5;
+const WALL_HEIGHT = 20;
+const WALL_THICKNESS = 0.5;
 
-///
-//WALL
+const roomCollisionBody = world.createRigidBody(
+    RAPIER.RigidBodyDesc.fixed()
+);
+
+//
+// FLOOR COLLIDER
+//
+const floorCollider = RAPIER.ColliderDesc
+    .cuboid(
+        ROOM_SIZE_X / 2,
+        FLOOR_THICKNESS / 2,
+        ROOM_SIZE_Z / 2
+    )
+    .setTranslation(
+        ROOM_CENTER_X,
+        FLOOR_Y - FLOOR_THICKNESS / 2,
+        ROOM_CENTER_Z
+    )
+    .setFriction(1.0);
+
+world.createCollider(floorCollider, roomCollisionBody);
+
+addDebugBox(
+    ROOM_SIZE_X,
+    FLOOR_THICKNESS,
+    ROOM_SIZE_Z,
+    ROOM_CENTER_X,
+    FLOOR_Y - FLOOR_THICKNESS / 2,
+    ROOM_CENTER_Z,
+    0x00ff99
+);
+
+//
+// LEFT WALL COLLIDER
+// This sits on the negative X side of the room.
+//
+const negativeXWallCollider = RAPIER.ColliderDesc
+    .cuboid(
+        WALL_THICKNESS / 2,
+        WALL_HEIGHT / 2,
+        ROOM_SIZE_Z / 2
+    )
+    .setTranslation(
+        ROOM_CENTER_X - ROOM_SIZE_X / 2 - WALL_THICKNESS / 2,
+        FLOOR_Y + WALL_HEIGHT / 2,
+        ROOM_CENTER_Z
+    )
+    .setFriction(0.8);
+
+world.createCollider(negativeXWallCollider, roomCollisionBody);
+
+addDebugBox(
+    WALL_THICKNESS,
+    WALL_HEIGHT,
+    ROOM_SIZE_Z,
+    ROOM_CENTER_X - ROOM_SIZE_X / 2 - WALL_THICKNESS / 2,
+    FLOOR_Y + WALL_HEIGHT / 2,
+    ROOM_CENTER_Z,
+    0xff5555
+);
+
+//
+// BACK WALL COLLIDER
+// This sits on the negative Z side of the room.
+//
+const negativeZWallCollider = RAPIER.ColliderDesc
+    .cuboid(
+        ROOM_SIZE_X / 2,
+        WALL_HEIGHT / 2,
+        WALL_THICKNESS / 2
+    )
+    .setTranslation(
+        ROOM_CENTER_X,
+        FLOOR_Y + WALL_HEIGHT / 2,
+        ROOM_CENTER_Z - ROOM_SIZE_Z / 2 - WALL_THICKNESS / 2
+    )
+    .setFriction(0.8);
+
+world.createCollider(negativeZWallCollider, roomCollisionBody);
+
+addDebugBox(
+    ROOM_SIZE_X,
+    WALL_HEIGHT,
+    WALL_THICKNESS,
+    ROOM_CENTER_X,
+    FLOOR_Y + WALL_HEIGHT / 2,
+    ROOM_CENTER_Z - ROOM_SIZE_Z / 2 - WALL_THICKNESS / 2,
+    0x5599ff
+);
+
+//
+// FURNITURE COLLIDERS
 //
 
-const wallGeometry = new THREE.BoxGeometry(30, 20, 0.4);
-const wallMaterial = new THREE.MeshLambertMaterial({
-    map: new THREE.TextureLoader().load("../assets/textures/field.jpg"),
-});
-const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+const furnitureColliders = [];
 
-wall.position.y = 1.5;
-wall.position.x = -3;
-wall.position.z = -10.5
+//
+// BED
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'bed',
+        22,
+        1,
+        13,
+        7.5,
+        FLOOR_Y + 2.5,
+        -8,
+        0xff8844
+    )
+);
 
-wall.receiveShadow = true;
-scene.add(wall);
+//
+// BED HEADBOARDS
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'bed_headboard1',
+        0.8,
+        3,
+        12,
+        -4,
+        FLOOR_Y + 4,
+        -8,
+        0xff7744
+    )
+);
 
-const wallBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 2.3, -10);
-const wallBody = world.createRigidBody(wallBodyDesc);
-world.createCollider(RAPIER.ColliderDesc.cuboid(15, 2.5, 0.2).setFriction(0.8), wallBody);
+furnitureColliders.push(
+    addFurnitureCollider(
+        'bed_headboard2',
+        0.8,
+        3,
+        12,
+        19,
+        FLOOR_Y + 4,
+        -8,
+        0xff7744
+    )
+);
 
+//
+// BED LEGS
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'bedleg1',
+        0.8,
+        3,
+        0.8,
+        -2,
+        FLOOR_Y + 1,
+        -3,
+        0xff7744
+    )
+);
+
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'bedleg2',
+        0.8,
+        3,
+        0.8,
+        17,
+        FLOOR_Y + 1,
+        -13,
+        0xff7744
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'bedleg3',
+        0.8,
+        3,
+        0.8,
+        17,
+        FLOOR_Y + 1,
+        -3,
+        0xff7744
+    )
+);
+
+//
+// MISC OBJECTS OMG THIS GAME IS GETTING TO MEEEEEEEEEEE
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'cardboard_box',
+        4,
+        3,
+        4,
+        -16,
+        FLOOR_Y + 18,
+        -9.5,
+        0x44aaff,
+        0,
+        THREE.MathUtils.degToRad(14)
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'books',
+        4,
+        3,
+        4,
+        1,
+        FLOOR_Y + 14,
+        -13.5,
+        0x44aaff,
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'speaker_1',
+        1,
+        3,
+        1,
+        -12.5,
+        FLOOR_Y + 7,
+        17.8,
+        0xdddddd,
+        0,
+        THREE.MathUtils.degToRad(20)
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'speaker_2',
+        1,
+        3,
+        1,
+        -12.5,
+        FLOOR_Y + 7,
+        8,
+        0xdddddd,
+        0,
+        THREE.MathUtils.degToRad(-20)
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'laptop',
+        0.5,
+        3.5,
+        7,
+        -13,
+        FLOOR_Y + 8,
+        13,
+        0xdddddd,
+        0,
+        0,
+        THREE.MathUtils.degToRad(10)
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'PC',
+        4,
+        4.5,
+        1.5,
+        -12.7,
+        FLOOR_Y + 1.5,
+        8,
+        0xdddddd
+    )
+);
+
+//
+// BOOKSHELF
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'back_bookshelf',
+        4,
+        27,
+        15,
+        -16,
+        FLOOR_Y + 3.5,
+        -5.3,
+        0xaa66ff
+    )
+);
+
+//
+// DESK
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'desk',
+        0.5,
+        5,
+        2.6,
+        -4.5,
+        FLOOR_Y + 6,
+        13.5,
+        0xffaa44,
+        0,
+        0,
+        THREE.MathUtils.degToRad(-20)
+    )
+);
+
+furnitureColliders.push(
+    addFurnitureCollider(
+        'deskleg1',
+        1,
+        6,
+        0.7,
+        -9.5,
+        FLOOR_Y + 2,
+        6.7,
+        0xdddddd
+    )
+);
+furnitureColliders.push(
+    addFurnitureCollider(
+        'deskleg2',
+        1,
+        6,
+        0.7,
+        -9.5,
+        FLOOR_Y + 2,
+        19.25,
+        0xdddddd
+    )
+);
+//
+// DESK CHAIR
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'desk_chair',
+        3,
+        8,
+        2.6,
+        -5.8,
+        FLOOR_Y + 2,
+        13.5,
+        0xdddddd
+    )
+);
+
+//
+// SMALL LEFT TABLE
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'small_left_table',
+        9,
+        1,
+        15,
+        -13,
+        FLOOR_Y + 5.5,
+        13,
+        0x996633
+    )
+);
+
+//
+// LEFT BIN
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'bin',
+        2,
+        3,
+        2,
+        -9.5,
+        FLOOR_Y + 1,
+        21.2,
+        0x999999
+    )
+);
+
+//
+// WALL SHELF
+//
+furnitureColliders.push(
+    addFurnitureCollider(
+        'wall_shelf',
+        21,
+        0.6,
+        5,
+        8,
+        FLOOR_Y + 11.5,
+        -13,
+        0x996633
+    )
+);
 
 //
 // GRAB SYSTEM
