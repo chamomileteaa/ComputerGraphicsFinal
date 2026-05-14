@@ -317,7 +317,7 @@ gltfLoader.load(
         breadMesh.scale.set(1, 1, 1);
         breadMesh.position.set(5, 3, 3.2);
 
-        breadMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        breadMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
 
         scene.add(breadMesh);
 
@@ -373,7 +373,7 @@ gltfLoader.load(
         fishMesh.scale.set(2, 2, 2);
         fishMesh.position.set(2, 3, 0);
 
-        fishMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        fishMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         scene.add(fishMesh);
 
         //
@@ -418,7 +418,7 @@ gltfLoader.load(
         milkMesh.scale.set(8, 8, 8);
         milkMesh.position.set(2, 3, 0);
 
-        milkMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        milkMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         scene.add(milkMesh);
 
         // PHYSICS
@@ -461,7 +461,7 @@ gltfLoader.load(
         birdMesh.scale.set(8, 8, 8);
         birdMesh.position.set(2, 3, 0);
 
-        birdMesh.userData.friendshipValue = 10; //GOOD obj //bad=-10
+        birdMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         scene.add(birdMesh);
 
         // PHYSICS
@@ -1359,18 +1359,48 @@ function updateFriendship(change) {
 
     friendship += change;
 
+    //
+    // GOOD / BAD AUDIO
+    //
+    if (change > 0) {
+
+        if (goodSound.isPlaying) {
+            goodSound.stop();
+        }
+
+        goodSound.play();
+
+    } else if (change < 0) {
+
+        if (badSound.isPlaying) {
+            badSound.stop();
+        }
+
+        badSound.play();
+    }
+
     friendship = Math.max(0, Math.min(100, friendship));
+
+    //
+    // WIN AUDIO
+    //
+    if (friendship >= 100 && !friendshipComplete) {
+
+        friendshipComplete = true;
+
+        successSound.play();
+
+        console.log('Friendship MAXED');
+    }
 
     friendshipBar.style.width = `${friendship}%`;
 
-    // color feedback
     friendshipBar.style.background =
         'linear-gradient(to right, #cff882, #7bcf48)';
 
     updateCatMoodTexture();
 
     console.log('Friendship:', friendship);
-
 }
 
 function updateCatMoodTexture() {
@@ -1715,6 +1745,63 @@ function animate() {
 }
 
 animate();
+
+//
+// AUDIO
+//
+const listener = new THREE.AudioListener();
+
+camera.add(listener);
+
+const audioLoader = new THREE.AudioLoader();
+
+//
+// GOOD ITEM SOUND
+//
+const goodSound = new THREE.Audio(listener);
+
+audioLoader.load(
+    '../assets/audio/meow-1.mp3',
+
+    (buffer) => {
+
+        goodSound.setBuffer(buffer);
+        goodSound.setVolume(0.6);
+    }
+);
+
+//
+// BAD ITEM SOUND
+//
+const badSound = new THREE.Audio(listener);
+
+audioLoader.load(
+    '../assets/audio/angry4.mp3',
+
+    (buffer) => {
+
+        badSound.setBuffer(buffer);
+        badSound.setVolume(0.6);
+    }
+);
+
+//
+// MAX FRIENDSHIP SOUND
+//
+const successSound = new THREE.Audio(listener);
+
+audioLoader.load(
+    '../assets/audio/simple-and-clean-melody.mp3',
+
+    (buffer) => {
+
+        successSound.setBuffer(buffer);
+        successSound.setVolume(0.7);
+    }
+);
+
+let friendshipComplete = false;
+
 //
 // RESIZE
 //
