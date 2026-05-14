@@ -32,6 +32,15 @@ const objectsToRemove = [];
 let catMesh = null;
 let catHeadMesh = null;
 
+let catMaterials = [];
+let currentCatMood = '';
+
+const catTextures = {
+    sad: null,
+    neutral: null,
+    happy: null
+};
+
 let catReactionTime = 0;
 let catReactionType = null;
 
@@ -129,14 +138,21 @@ const world = new RAPIER.World({
 const gltfLoader = new GLTFLoader();
 
 const textureLoader = new THREE.TextureLoader();
+catTextures.sad = textureLoader.load('../assets/textures/cat_sad.png');
+catTextures.neutral = textureLoader.load('../assets/textures/cat_neutral.png');
+catTextures.happy = textureLoader.load('../assets/textures/cat_happy.png');
+
+catTextures.sad.flipY = false;
+catTextures.neutral.flipY = false;
+catTextures.happy.flipY = false;
 
 gltfLoader.load(
-    '../models/cat/FPcat.gltf',
+    '../models/cat/FPcat1.gltf',
 
     (gltf) => {
 
         const cat = gltf.scene;
-        
+
         catMesh = cat;
 
         catBaseRotation.copy(cat.rotation);
@@ -151,7 +167,7 @@ gltfLoader.load(
                 catHeadMesh = child;
                 catHeadBaseRotation.copy(child.rotation);
             }
-});
+        });
 
         //
         // LOAD CAT TEXTURE
@@ -168,8 +184,10 @@ gltfLoader.load(
             if (!child.isMesh) return;
 
             child.material = new THREE.MeshStandardMaterial({
-                map: catTexture
+                map: catTextures.neutral
             });
+
+            catMaterials.push(child.material);
 
             child.castShadow = true;
             child.receiveShadow = true;
@@ -220,15 +238,15 @@ gltfLoader.load(
 // ROOM MODEL + ROOM COLLIDERS
 //
 gltfLoader.load(
-    '../models/room/scene.gltf',
+    '../models/room/roomscene.glb',
     //changes
 
     (gltf) => {
 
         const room = gltf.scene;
 
-        room.scale.set(20, 20, 20);
-        room.position.set(0, 3, 3.2);
+        room.scale.set(0.1, 0.1, 0.1);
+        room.position.set(0, 0, 3.2);
 
         scene.add(room);
 
@@ -703,8 +721,8 @@ document.addEventListener('mousedown', (event) => {
     );
 
     //
-// FIND HIT OBJECT
-//
+    // FIND HIT OBJECT
+    //
     for (const obj of grabbableObjects) {
 
         let current = hits[0].object;
@@ -890,7 +908,33 @@ function updateFriendship(change) {
     // color feedback
     friendshipBar.style.background =
         'linear-gradient(to right, #cff882, #7bcf48)';
+
+    updateCatMoodTexture();
+
     console.log('Friendship:', friendship);
+
+}
+
+function updateCatMoodTexture() {
+
+    if (!catMesh) return;
+
+    let mood = 'neutral';
+
+    if (friendship < 20) {
+        mood = 'sad';
+    } else if (friendship >= 65) {
+        mood = 'happy';
+    }
+
+    if (mood === currentCatMood) return;
+
+    currentCatMood = mood;
+
+    for (const material of catMaterials) {
+        material.map = catTextures[mood];
+        material.needsUpdate = true;
+    }
 }
 
 function triggerCatReaction(friendshipValue) {
@@ -979,62 +1023,62 @@ function updateCatReaction(delta) {
     }
 }
 
-        const triggeredObjects = new Set();
+const triggeredObjects = new Set();
 
-        function checkFriendshipCollisions() {
+function checkFriendshipCollisions() {
 
-            if (!window.catBody) return;
+    if (!window.catBody) return;
 
-            const catPosition = window.catBody.translation();
+    const catPosition = window.catBody.translation();
 
-            for (const obj of grabbableObjects) {
+    for (const obj of grabbableObjects) {
 
-                if (obj.mesh.userData.friendshipValue === undefined) continue;
+        if (obj.mesh.userData.friendshipValue === undefined) continue;
 
-                const position = obj.body.translation();
+        const position = obj.body.translation();
 
-                const dx = position.x - catPosition.x;
-                const dy = position.y - catPosition.y;
-                const dz = position.z - catPosition.z;
+        const dx = position.x - catPosition.x;
+        const dy = position.y - catPosition.y;
+        const dz = position.z - catPosition.z;
 
-                const distance = Math.sqrt(
-                    dx * dx +
-                    dy * dy +
-                    dz * dz
-                );
+        const distance = Math.sqrt(
+            dx * dx +
+            dy * dy +
+            dz * dz
+        );
 
-                //
-                // COLLISION DISTANCE
-                //
-                if (distance < 5) {
+        //
+        // COLLISION DISTANCE
+        //
+        if (distance < 5) {
 
-                    //
-                    // PREVENT REPEATED TRIGGERS
-                    //
-                    if (triggeredObjects.has(obj.mesh)) continue;
+            //
+            // PREVENT REPEATED TRIGGERS
+            //
+            if (triggeredObjects.has(obj.mesh)) continue;
 
-                    triggeredObjects.add(obj.mesh);
+            triggeredObjects.add(obj.mesh);
 
-                    updateFriendship(
-                        obj.mesh.userData.friendshipValue
-                    );
+            updateFriendship(
+                obj.mesh.userData.friendshipValue
+            );
 
-                    triggerCatReaction(
-                        obj.mesh.userData.friendshipValue
-                    );
+            triggerCatReaction(
+                obj.mesh.userData.friendshipValue
+            );
 
-                    //
-                    // delete obj when collide
-                    //
-                    objectsToRemove.push(obj);
+            //
+            // delete obj when collide
+            //
+            objectsToRemove.push(obj);
 
-                    console.log(
-                        'Friendship changed:',
-                        obj.mesh.userData.friendshipValue
-                    );
-                }
-            }
+            console.log(
+                'Friendship changed:',
+                obj.mesh.userData.friendshipValue
+            );
         }
+    }
+}
 
 function animate() {
 
@@ -1055,8 +1099,8 @@ function animate() {
     }
 
     //
-// SAFE OBJECT REMOVAL
-//
+    // SAFE OBJECT REMOVAL
+    //
     for (const obj of objectsToRemove) {
 
         scene.remove(obj.mesh);
