@@ -32,8 +32,19 @@ const objectsToRemove = [];
 let catMesh = null;
 let catHeadMesh = null;
 
+let catBones = {
+    armUpperL: null,
+    armUpperR: null,
+    legTopL: null,
+    legTopR: null,
+    tail: null,
+    tail001: null,
+    tail002: null
+};
+
 let catMaterials = [];
 let currentCatMood = '';
+
 
 const catTextures = {
     sad: null,
@@ -156,6 +167,19 @@ gltfLoader.load(
         catMesh = cat;
 
         catBaseRotation.copy(cat.rotation);
+
+        cat.traverse((child) => {
+
+            if (child.isBone) {
+                if (child.name === 'armupperL') catBones.armUpperL = child;
+                if (child.name === 'armupperR') catBones.armUpperR = child;
+                if (child.name === 'legtopL') catBones.legTopL = child;
+                if (child.name === 'legtopR') catBones.legTopR = child;
+                if (child.name === 'tail') catBones.tail = child;
+                if (child.name === 'tail001') catBones.tail001 = child;
+                if (child.name === 'tail002') catBones.tail002 = child;
+            }
+        });
 
         cat.traverse((child) => {
 
@@ -1111,6 +1135,7 @@ const targetPosition = new THREE.Vector3();
 let isMouseDown = false;
 let isGrabbing = false;
 let grabDistance = 4;
+let isCatGrabbed = false;
 
 const maxGrabDistance = 7;
 const grabPullStrength = 14;
@@ -1513,6 +1538,112 @@ function checkFriendshipCollisions() {
     }
 }
 
+
+//Cat Movement
+let catWander = {
+    target: new THREE.Vector3(),
+    speed: 1.8,
+    waitTimer: 3,
+    moving: false,
+    center: new THREE.Vector3(1, -3, 5),
+    radius: 7
+};
+
+function pickNewCatTarget(cat) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * catWander.radius;
+
+    catWander.target.set(
+        catWander.center.x + Math.cos(angle) * distance,
+        cat.position.y,
+        catWander.center.z + Math.sin(angle) * distance
+    );
+
+    catWander.moving = true;
+}
+
+function updateCatWander(cat, delta) {
+    if (!cat) return;
+    if (!catWander.moving) {
+        catWander.waitTimer -= delta;
+
+        if (catWander.waitTimer <= 0) {
+            pickNewCatTarget(cat);
+        }
+
+        return;
+    }
+
+    const direction = catWander.target.clone().sub(cat.position);
+    direction.y = 0;
+
+    const distance = direction.length();
+
+    if (distance < 0.2) {
+        catWander.moving = false;
+        catWander.waitTimer = THREE.MathUtils.randFloat(5, 10);
+        return;
+    }
+
+    direction.normalize();
+
+    cat.position.addScaledVector(
+        direction,
+        catWander.speed * delta
+    );
+
+
+    cat.rotation.y = Math.atan2(direction.x, direction.z);
+}
+
+function updateCatIdleAnimation(cat) {
+    if (!cat) return;
+    if (catWander.moving) return;
+    if (isCatGrabbed) return;
+    if (catReactionTime > 0) return;
+
+    const time = clock.getElapsedTime();
+
+    const breathe = Math.sin(time * 2) * 0.08;
+    const sway = Math.sin(time * 1.5) * 0.05;
+    const tailSwing = Math.sin(time * 2) * 0.18;
+
+    cat.scale.set(
+        catBaseScale.x,
+        catBaseScale.y + breathe,
+        catBaseScale.z
+    );
+
+    cat.rotation.z = catBaseRotation.z + sway;
+
+    if (catBones.tail) catBones.tail.rotation.y = tailSwing;
+    if (catBones.tail001) catBones.tail001.rotation.y = tailSwing * 0.9;
+    if (catBones.tail002) catBones.tail002.rotation.y = tailSwing * 0.7;
+}
+
+let boneAnimTimer = 0;
+
+function updateCatBoneWalk(delta) {
+    if (!catWander.moving || isCatGrabbed) return;
+    if (catReactionTime > 0) return;
+
+    boneAnimTimer += delta;
+
+    const swingA = Math.sin(boneAnimTimer * 4) * 0.25;
+    const swingB = Math.sin(boneAnimTimer * 4 + Math.PI) * 0.25;
+    const tailSwing = Math.sin(boneAnimTimer * 2) * 0.12;
+
+    if (catBones.armUpperL) catBones.armUpperL.rotation.x = swingA;
+    if (catBones.legTopR) catBones.legTopR.rotation.x = swingA;
+
+    if (catBones.armUpperR) catBones.armUpperR.rotation.x = swingB;
+    if (catBones.legTopL) catBones.legTopL.rotation.x = swingB;
+
+    if (catBones.tail) catBones.tail.rotation.y = tailSwing;
+    if (catBones.tail001) catBones.tail001.rotation.y = tailSwing * 0.7;
+    if (catBones.tail002) catBones.tail002.rotation.y = tailSwing * 0.5;
+}
+
 function animate() {
 
     requestAnimationFrame(animate);
@@ -1521,6 +1652,13 @@ function animate() {
     updateMovement(delta);
 
     updateGrab(delta);
+
+    if (catMesh) {
+        updateCatWander(catMesh, delta);
+        updateCatBoneWalk(delta);
+        updateCatIdleAnimation(catMesh);
+    }
+
 
     physicsAccumulator += delta;
 
@@ -1580,6 +1718,9 @@ animate();
 //
 // RESIZE
 //
+
+
+
 window.addEventListener('resize', () => {
 
     camera.aspect = window.innerWidth / window.innerHeight;
