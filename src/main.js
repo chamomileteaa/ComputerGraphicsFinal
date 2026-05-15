@@ -321,16 +321,92 @@ document.addEventListener('keydown', (event) => {
 });
 
 //
-// LIGHTING
+// WARM SUNSET LIGHTING
 //
-const ambient = new THREE.AmbientLight(0xffffff, 1.5);
+
+//
+// Soft warm fill so the room is still readable.
+//
+const ambient = new THREE.HemisphereLight(
+    0xffd6a3,
+    0x2b1b14,
+    0.9
+);
+
 scene.add(ambient);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-dirLight.position.set(5, 10, 5);
-dirLight.castShadow = true;
+//
+// Main sunset beam.
+// Move this position to change the angle of sunlight entering the room.
+//
+const sunsetLight = new THREE.DirectionalLight(
+    0xff9f4a,
+    3.2
+);
 
-scene.add(dirLight);
+sunsetLight.position.set(
+    -18,
+    18,
+    22
+);
+
+sunsetLight.target.position.set(
+    1,
+    -2,
+    4
+);
+
+scene.add(sunsetLight.target);
+
+sunsetLight.castShadow = true;
+
+sunsetLight.shadow.mapSize.width = 2048;
+sunsetLight.shadow.mapSize.height = 2048;
+
+sunsetLight.shadow.camera.left = -35;
+sunsetLight.shadow.camera.right = 35;
+sunsetLight.shadow.camera.top = 35;
+sunsetLight.shadow.camera.bottom = -35;
+sunsetLight.shadow.camera.near = 1;
+sunsetLight.shadow.camera.far = 80;
+
+sunsetLight.shadow.bias = -0.0002;
+
+scene.add(sunsetLight);
+
+//
+// Slight orange glow inside the room.
+// This helps the sunset feel warmer instead of just directional.
+//
+const roomGlow = new THREE.PointLight(
+    0xff7a2f,
+    1.1,
+    45,
+    2
+);
+
+roomGlow.position.set(
+    -8,
+    8,
+    16
+);
+
+scene.add(roomGlow);
+
+
+//TINTING
+const coolShadowFill = new THREE.DirectionalLight(
+    0x6f8cff,
+    0.35
+);
+
+coolShadowFill.position.set(
+    18,
+    10,
+    -18
+);
+
+scene.add(coolShadowFill);
 
 //
 // PHYSICS WORLD
@@ -340,8 +416,6 @@ const world = new RAPIER.World({
     y: -9.81,
     z: 0
 });
-
-
 
 //
 // Add cat
@@ -519,6 +593,21 @@ gltfLoader.load(
     }
 );
 
+function enableShadowsForModel(model) {
+
+    model.traverse((child) => {
+
+        if (!child.isMesh) return;
+
+        child.castShadow = true;
+        child.receiveShadow = true;
+
+        if (child.material) {
+            child.material.needsUpdate = true;
+        }
+    });
+}
+
 function registerFoodTemplate(type, mesh, options) {
 
     //
@@ -568,6 +657,8 @@ gltfLoader.load(
 
         breadMesh.scale.set(1, 1, 1);
         breadMesh.position.set(5, 3, 3.2);
+
+        enableShadowsForModel(breadMesh);
 
         breadMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
 
@@ -637,6 +728,8 @@ gltfLoader.load(
         fishMesh.scale.set(2, 2, 2);
         fishMesh.position.set(2, 3, 0);
 
+        enableShadowsForModel(fishMesh);
+
         fishMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         registerFoodTemplate(
             'fish',
@@ -691,6 +784,8 @@ gltfLoader.load(
         milkMesh.scale.set(8, 8, 8);
         milkMesh.position.set(2, 3, 0);
 
+        enableShadowsForModel(milkMesh);
+
         milkMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         registerFoodTemplate(
             'milk',
@@ -742,6 +837,8 @@ gltfLoader.load(
 
         birdMesh.scale.set(8, 8, 8);
         birdMesh.position.set(2, 3, 0);
+
+        enableShadowsForModel(birdMesh);
 
         birdMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
 
@@ -797,6 +894,8 @@ gltfLoader.load(
         cucMesh.scale.set(8, 8, 8);
         cucMesh.position.set(2, 3, 0);
 
+        enableShadowsForModel(cucMesh);
+
         cucMesh.userData.friendshipValue = -15; //GOOD obj //bad=-10
 
         registerFoodTemplate(
@@ -851,6 +950,8 @@ gltfLoader.load(
         mealMesh.scale.set(0.03, 0.03, 0.03);
         mealMesh.position.set(2, 3, 0);
 
+        enableShadowsForModel(mealMesh);
+
         mealMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
 
         registerFoodTemplate(
@@ -904,6 +1005,8 @@ gltfLoader.load(
 
         waterMesh.scale.set(1, 1, 1);
         waterMesh.position.set(2, 3, 0);
+
+        enableShadowsForModel(waterMesh);
 
         waterMesh.userData.friendshipValue = -10; //GOOD obj //bad=-10
 
