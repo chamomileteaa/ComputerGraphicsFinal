@@ -19,7 +19,15 @@ const canvas = document.querySelector('#app');
 
 const scene = createScene();
 const camera = createCamera();
+
 const renderer = createRenderer(canvas);
+
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.9;
+
 
 //
 // ORBIT CAMERA
@@ -53,12 +61,6 @@ controls.minPolarAngle = THREE.MathUtils.degToRad(25);
 controls.maxPolarAngle = THREE.MathUtils.degToRad(75);
 
 controls.update();
-
-const overlay = document.querySelector('#overlay');
-const crosshair = document.querySelector('#crosshair');
-
-if (overlay) overlay.style.display = 'none';
-if (crosshair) crosshair.style.display = 'none';
 
 controls.mouseButtons.LEFT = null;
 controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
@@ -236,12 +238,27 @@ let catMaterials = [];
 let currentCatMood = '';
 
 
-const catTextures = {
-    sad: null,
-    neutral: null,
-    happy: null
+const catSkins = {
+    original: {
+        sad: null,
+        neutral: null,
+        happy: null
+    },
+
+    gray: {
+        sad: null,
+        neutral: null,
+        happy: null
+    },
+
+    white: {
+        sad: null,
+        neutral: null,
+        happy: null
+    }
 };
 
+let currentCatSkin = 'original';
 let catReactionTime = 0;
 let catReactionType = null;
 
@@ -284,6 +301,21 @@ document.addEventListener('keydown', (event) => {
 
     const key = event.key.toLowerCase();
 
+    if (key === '1') {
+        changeCatSkin('original');
+        return;
+    }
+
+    if (key === '2') {
+        changeCatSkin('gray');
+        return;
+    }
+
+    if (key === '3') {
+        changeCatSkin('white');
+        return;
+    }
+
     if (key === 'q') {
 
         selectedFoodIndex--;
@@ -321,92 +353,57 @@ document.addEventListener('keydown', (event) => {
 });
 
 //
-// WARM SUNSET LIGHTING
+// LIGHTING - AFTERNOON VIBE
 //
 
-//
-// Soft warm fill so the room is still readable.
-//
-const ambient = new THREE.HemisphereLight(
-    0xffd6a3,
-    0x2b1b14,
-    0.9
-);
-
+const ambient = new THREE.AmbientLight(0xffd6a5, 0.55);
 scene.add(ambient);
 
-//
-// Main sunset beam.
-// Move this position to change the angle of sunlight entering the room.
-//
-const sunsetLight = new THREE.DirectionalLight(
-    0xff9f4a,
-    3.2
-);
+const sunLight = new THREE.DirectionalLight(0xff9f43, 5.5);
+sunLight.position.set(-10, 20, 15);
+sunLight.castShadow = true;
 
-sunsetLight.position.set(
-    -18,
-    18,
-    22
-);
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
 
-sunsetLight.target.position.set(
-    1,
-    -2,
-    4
-);
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 100;
+sunLight.shadow.camera.left = -40;
+sunLight.shadow.camera.right = 40;
+sunLight.shadow.camera.top = 40;
+sunLight.shadow.camera.bottom = -40;
 
-scene.add(sunsetLight.target);
+sunLight.shadow.bias = -0.0005;
 
-sunsetLight.castShadow = true;
+scene.add(sunLight);
 
-sunsetLight.shadow.mapSize.width = 2048;
-sunsetLight.shadow.mapSize.height = 2048;
-
-sunsetLight.shadow.camera.left = -35;
-sunsetLight.shadow.camera.right = 35;
-sunsetLight.shadow.camera.top = 35;
-sunsetLight.shadow.camera.bottom = -35;
-sunsetLight.shadow.camera.near = 1;
-sunsetLight.shadow.camera.far = 80;
-
-sunsetLight.shadow.bias = -0.0002;
-
-scene.add(sunsetLight);
-
-//
-// Slight orange glow inside the room.
-// This helps the sunset feel warmer instead of just directional.
-//
-const roomGlow = new THREE.PointLight(
-    0xff7a2f,
-    1.1,
-    45,
-    2
-);
-
-roomGlow.position.set(
-    -8,
-    8,
-    16
-);
-
-scene.add(roomGlow);
-
-
-//TINTING
-const coolShadowFill = new THREE.DirectionalLight(
-    0x6f8cff,
+const skyLight = new THREE.HemisphereLight(
+    0x6f8fbf,
+    0xffb86b,
     0.35
 );
 
-coolShadowFill.position.set(
-    18,
-    10,
-    -18
+scene.add(skyLight);
+
+//
+// VISIBLE AFTERNOON LIGHT BEAM
+//
+const beam = new THREE.Mesh(
+    new THREE.PlaneGeometry(18, 10),
+    new THREE.MeshBasicMaterial({
+        color: 0xffb347,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide,
+        depthWrite: false
+    })
 );
 
-scene.add(coolShadowFill);
+beam.rotation.x = -Math.PI / 2;
+beam.rotation.z = THREE.MathUtils.degToRad(-25);
+beam.position.set(-2, -2.65, 3);
+
+scene.add(beam)
 
 //
 // PHYSICS WORLD
@@ -417,19 +414,34 @@ const world = new RAPIER.World({
     z: 0
 });
 
+
+
 //
 // Add cat
 //
 const gltfLoader = new GLTFLoader();
 
 const textureLoader = new THREE.TextureLoader();
-catTextures.sad = textureLoader.load('../assets/textures/cat_sad.png');
-catTextures.neutral = textureLoader.load('../assets/textures/cat_neutral.png');
-catTextures.happy = textureLoader.load('../assets/textures/cat_happy.png');
+catSkins.original.sad = textureLoader.load('../assets/textures/cat_sad.png');
+catSkins.original.neutral = textureLoader.load('../assets/textures/cat_neutral.png');
+catSkins.original.happy = textureLoader.load('../assets/textures/cat_happy.png');
 
-catTextures.sad.flipY = false;
-catTextures.neutral.flipY = false;
-catTextures.happy.flipY = false;
+catSkins.gray.sad = textureLoader.load('../assets/textures/catgray_sad.png');
+catSkins.gray.neutral = textureLoader.load('../assets/textures/catgray_neutral.png');
+catSkins.gray.happy = textureLoader.load('../assets/textures/catgray_happy.png');
+
+catSkins.white.sad = textureLoader.load('../assets/textures/catwhite_sad.png');
+catSkins.white.neutral = textureLoader.load('../assets/textures/catwhite_neutral.png');
+catSkins.white.happy = textureLoader.load('../assets/textures/catwhite_happy.png');
+
+for (const skinName in catSkins) {
+
+    for (const moodName in catSkins[skinName]) {
+
+        catSkins[skinName][moodName].flipY = false;
+    }
+}
+
 
 gltfLoader.load(
     '../models/cat/FPcat1.gltf',
@@ -474,13 +486,7 @@ gltfLoader.load(
             }
         });
 
-        //
-        // LOAD CAT TEXTURE
-        //
-        const catTexture = textureLoader.load(
-            '../assets/textures/Cat_tex1.png'
-        );
-        catTexture.flipY = false;
+
         //
         // APPLY TEXTURE TO ALL CAT MESHES
         //
@@ -489,7 +495,7 @@ gltfLoader.load(
             if (!child.isMesh) return;
 
             child.material = new THREE.MeshStandardMaterial({
-                map: catTextures.neutral
+                map: catSkins[currentCatSkin].neutral
             });
 
             catMaterials.push(child.material);
@@ -593,21 +599,6 @@ gltfLoader.load(
     }
 );
 
-function enableShadowsForModel(model) {
-
-    model.traverse((child) => {
-
-        if (!child.isMesh) return;
-
-        child.castShadow = true;
-        child.receiveShadow = true;
-
-        if (child.material) {
-            child.material.needsUpdate = true;
-        }
-    });
-}
-
 function registerFoodTemplate(type, mesh, options) {
 
     //
@@ -658,21 +649,19 @@ gltfLoader.load(
         breadMesh.scale.set(1, 1, 1);
         breadMesh.position.set(5, 3, 3.2);
 
-        enableShadowsForModel(breadMesh);
-
         breadMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
 
         registerFoodTemplate(
-        'bread',
-        breadMesh,
-        {
-            scale: new THREE.Vector3(1, 1, 1),
-            colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
-            friendshipValue: 25,
-            density: 1.0,
-            friction: 0.8
-        }
-    );
+            'bread',
+            breadMesh,
+            {
+                scale: new THREE.Vector3(1, 1, 1),
+                colliderHalfSize: new THREE.Vector3(0.5, 0.5, 0.5),
+                friendshipValue: 25,
+                density: 1.0,
+                friction: 0.8
+            }
+        );
 
         scene.add(breadMesh);
 
@@ -728,8 +717,6 @@ gltfLoader.load(
         fishMesh.scale.set(2, 2, 2);
         fishMesh.position.set(2, 3, 0);
 
-        enableShadowsForModel(fishMesh);
-
         fishMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         registerFoodTemplate(
             'fish',
@@ -784,8 +771,6 @@ gltfLoader.load(
         milkMesh.scale.set(8, 8, 8);
         milkMesh.position.set(2, 3, 0);
 
-        enableShadowsForModel(milkMesh);
-
         milkMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
         registerFoodTemplate(
             'milk',
@@ -837,8 +822,6 @@ gltfLoader.load(
 
         birdMesh.scale.set(8, 8, 8);
         birdMesh.position.set(2, 3, 0);
-
-        enableShadowsForModel(birdMesh);
 
         birdMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
 
@@ -894,8 +877,6 @@ gltfLoader.load(
         cucMesh.scale.set(8, 8, 8);
         cucMesh.position.set(2, 3, 0);
 
-        enableShadowsForModel(cucMesh);
-
         cucMesh.userData.friendshipValue = -15; //GOOD obj //bad=-10
 
         registerFoodTemplate(
@@ -950,8 +931,6 @@ gltfLoader.load(
         mealMesh.scale.set(0.03, 0.03, 0.03);
         mealMesh.position.set(2, 3, 0);
 
-        enableShadowsForModel(mealMesh);
-
         mealMesh.userData.friendshipValue = 25; //GOOD obj //bad=-10
 
         registerFoodTemplate(
@@ -1005,8 +984,6 @@ gltfLoader.load(
 
         waterMesh.scale.set(1, 1, 1);
         waterMesh.position.set(2, 3, 0);
-
-        enableShadowsForModel(waterMesh);
 
         waterMesh.userData.friendshipValue = -10; //GOOD obj //bad=-10
 
@@ -2560,14 +2537,24 @@ function updateCatMoodTexture() {
         mood = 'happy';
     }
 
-    if (mood === currentCatMood) return;
-
     currentCatMood = mood;
 
     for (const material of catMaterials) {
-        material.map = catTextures[mood];
+        material.map = catSkins[currentCatSkin][mood];
         material.needsUpdate = true;
     }
+}
+
+function changeCatSkin(skinName) {
+
+    if (!catSkins[skinName]) return;
+
+    currentCatSkin = skinName;
+    currentCatMood = '';
+
+    updateCatMoodTexture();
+
+    console.log('Cat skin changed to:', skinName);
 }
 
 function triggerCatReaction(friendshipValue) {
@@ -3153,6 +3140,7 @@ function animate() {
 animate();
 
 //
+//
 // AUDIO
 //
 const listener = new THREE.AudioListener();
@@ -3161,11 +3149,17 @@ camera.add(listener);
 
 const audioLoader = new THREE.AudioLoader();
 
+const goodSound = new THREE.Audio(listener);
+const badSound = new THREE.Audio(listener);
+const successSound = new THREE.Audio(listener);
+const bgMusic = new THREE.Audio(listener);
+
+let bgMusicReady = false;
+let friendshipComplete = false;
+
 //
 // GOOD ITEM SOUND
 //
-const goodSound = new THREE.Audio(listener);
-
 audioLoader.load(
     '../assets/audio/meow-1.mp3',
 
@@ -3179,8 +3173,6 @@ audioLoader.load(
 //
 // BAD ITEM SOUND
 //
-const badSound = new THREE.Audio(listener);
-
 audioLoader.load(
     '../assets/audio/angry4.mp3',
 
@@ -3194,8 +3186,6 @@ audioLoader.load(
 //
 // MAX FRIENDSHIP SOUND
 //
-const successSound = new THREE.Audio(listener);
-
 audioLoader.load(
     '../assets/audio/simple-and-clean-melody.mp3',
 
@@ -3206,12 +3196,72 @@ audioLoader.load(
     }
 );
 
-let friendshipComplete = false;
+//
+// BACKGROUND MUSIC
+//
+audioLoader.load(
+    '../assets/audio/lofi.mp3',
+
+    (buffer) => {
+
+        bgMusic.setBuffer(buffer);
+        bgMusic.setLoop(true);
+        bgMusic.setVolume(0.35);
+
+        bgMusicReady = true;
+
+        tryPlayMusic();
+    }
+);
+
+//
+// UI BUTTONS
+//
+const volumeButton = document.querySelector('#volume-button');
+const playButton = document.querySelector('#play-button');
+const pauseButton = document.querySelector('#pause-button');
+const volumeSlider = document.querySelector('#volume-slider');
+
+function tryPlayMusic() {
+
+    if (!bgMusicReady) return;
+    if (bgMusic.isPlaying) return;
+
+    bgMusic.play();
+}
+
+volumeButton.addEventListener('click', () => {
+    volumeSlider.classList.toggle('show');
+});
+
+playButton.addEventListener('click', () => {
+    tryPlayMusic();
+});
+
+pauseButton.addEventListener('click', () => {
+    if (bgMusic.isPlaying) {
+        bgMusic.pause();
+    }
+});
+
+volumeSlider.addEventListener('input', () => {
+    const volume = Number(volumeSlider.value);
+
+    bgMusic.setVolume(volume * 0.5);
+    goodSound.setVolume(volume * 0.6);
+    badSound.setVolume(volume * 0.6);
+    successSound.setVolume(volume * 0.7);
+});
+
+document.body.addEventListener('click', () => {
+    tryPlayMusic();
+}, { once: true });
+
+
 
 //
 // RESIZE
 //
-
 window.addEventListener('resize', () => {
 
     camera.aspect = window.innerWidth / window.innerHeight;
