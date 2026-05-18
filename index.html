@@ -16,7 +16,10 @@
       font-family: Arial, sans-serif;
     }
 
+
+
     canvas {
+
       display: block;
     }
 
@@ -102,21 +105,21 @@
 <body>
 
 
-  <div id="audio-ui">
-    <button id="music-toggle">Pause Music</button>
+  <div id="top-buttons">
+    <button><img src="./assets/textures/playbutton.png"></button>
+    <button><img src="./assets/textures/pausebutton.png"></button>
 
-    <label>
-      Volume
+    <div id="volume-box">
+      <button id="volume-button">
+        <img src="./assets/textures/volumebutton.png">
+      </button>
+
       <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.6">
-    </label>
-  </div>
-
-
-  <div id="overlay">
-    <div>
-      <h1>Befriend Kitty</h1>
     </div>
   </div>
+
+
+
 
   <div id="friendship-container">
     <div id="friendship-label">Friendship Level</div>
