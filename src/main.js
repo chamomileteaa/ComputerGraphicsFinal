@@ -3140,7 +3140,6 @@ function animate() {
 animate();
 
 //
-//
 // AUDIO
 //
 const listener = new THREE.AudioListener();
@@ -3234,7 +3233,10 @@ volumeButton.addEventListener('click', () => {
     volumeSlider.classList.toggle('show');
 });
 
-playButton.addEventListener('click', () => {
+playButton.addEventListener('click', async () => {
+
+    await listener.context.resume();
+
     tryPlayMusic();
 });
 
@@ -3253,11 +3255,13 @@ volumeSlider.addEventListener('input', () => {
     successSound.setVolume(volume * 0.7);
 });
 
-document.body.addEventListener('click', () => {
+document.body.addEventListener('click', async () => {
+
+    await listener.context.resume();
+
     tryPlayMusic();
+
 }, { once: true });
-
-
 
 //
 // RESIZE
