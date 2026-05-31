@@ -2132,7 +2132,7 @@ function resolveCatFurnitureCollision(previousPosition, nextPosition) {
     //
     return previousPosition.clone();
 }
- function furnitureCanBeRecoverySurface(furniture) {
+function furnitureCanBeRecoverySurface(furniture) {
 
     const name = furniture.name.toLowerCase();
 
@@ -3481,6 +3481,13 @@ function setCatPhysicalBodyEnabled(enabled) {
     }
 }
 
+let randomEventObject = null;
+let goldenFish = null;
+let rottenFish = null;
+
+let nextRandomSpawnTime = 0;
+let randomSpawnDelay = 0;
+
 function animate() {
 
     requestAnimationFrame(animate);
@@ -3535,6 +3542,9 @@ function animate() {
         }
     }
 
+    if (performance.now() > nextRandomSpawnTime) {
+        spawnRandomFish();
+    }
 
     physicsAccumulator += delta;
 
@@ -3601,6 +3611,8 @@ function animate() {
 
     renderer.render(scene, camera);
 }
+
+setNextRandomSpawnTime();
 
 animate();
 
@@ -3742,3 +3754,83 @@ window.addEventListener('resize', () => {
         window.innerHeight
     );
 });
+
+
+function setNextRandomSpawnTime() {
+    randomSpawnDelay = THREE.MathUtils.randInt(30000, 40000);
+    nextRandomSpawnTime = performance.now() + randomSpawnDelay;
+}
+
+function getRandomMapPosition() {
+    const range = 12;
+
+    return new THREE.Vector3(
+        THREE.MathUtils.randFloat(-range, range),
+        FLOOR_Y + 1,
+        THREE.MathUtils.randFloat(-range, range)
+    );
+}
+
+function spawnGoldenFish() {
+    gltfLoader.load(
+        '../models/randomobject/goldenfish.gltf',
+
+        (gltf) => {
+            randomEventObject = gltf.scene;
+            goldenFish = randomEventObject;
+            rottenFish = null;
+
+            randomEventObject.position.copy(getRandomMapPosition());
+            randomEventObject.scale.set(0.4, 0.4, 0.4);
+
+            randomEventObject.userData.friendshipValue = 25;
+            randomEventObject.userData.type = 'goldenFish';
+
+            scene.add(randomEventObject);
+
+            console.log('Golden fish spawned');
+        }
+    );
+}
+
+function spawnRottenFish() {
+    gltfLoader.load(
+        '../models/randomobject/rottenfish.gltf',
+
+        (gltf) => {
+            randomEventObject = gltf.scene;
+            rottenFish = randomEventObject;
+            goldenFish = null;
+
+            randomEventObject.position.copy(getRandomMapPosition());
+            randomEventObject.scale.set(1, 1, 1);
+
+            randomEventObject.userData.friendshipValue = -25;
+            randomEventObject.userData.type = 'rottenFish';
+
+            scene.add(randomEventObject);
+
+            console.log('Rotten fish spawned');
+        }
+    );
+}
+
+function spawnRandomFish() {
+    if (randomEventObject) {
+        scene.remove(randomEventObject);
+        randomEventObject = null;
+        goldenFish = null;
+        rottenFish = null;
+    }
+
+    const random = Math.random();
+
+    if (random < 0.5) {
+        spawnGoldenFish();
+    } else {
+        spawnRottenFish();
+    }
+
+    setNextRandomSpawnTime();
+}
+
