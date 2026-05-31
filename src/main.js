@@ -171,6 +171,9 @@ let catHeadMesh = null;
 let catBody = null;
 let catColliderDebugMesh = null;
 
+let catPhysicalBody = null;
+let catPhysicalDebugMesh = null;
+
 const CAT_EAT_RADIUS = 2.0;
 
 const CAT_EAT_OFFSET = new THREE.Vector3(0, 5.5, 0);
@@ -182,6 +185,14 @@ let catMode = 'walking';
 
 let catGrabDistance = 4;
 let catRagdollTimer = 0;
+
+const CAT_PHYSICAL_OFFSET = new THREE.Vector3(0, 4, 0);
+
+const CAT_PHYSICAL_SIZE = {
+    width: 2.4,
+    height: 7.5,
+    depth: 2.4
+};
 
 const CAT_THROW_CENTER_OFFSET = new THREE.Vector3(0, 3.0, 0);
 
@@ -403,8 +414,6 @@ beam.rotation.x = -Math.PI / 2;
 beam.rotation.z = THREE.MathUtils.degToRad(-25);
 beam.position.set(-2, -2.65, 3);
 
-scene.add(beam)
-
 //
 // PHYSICS WORLD
 //
@@ -544,6 +553,8 @@ gltfLoader.load(
         cat.userData.collider = catColliderRef;
 
         window.catBody = catBody;
+
+        createCatPhysicalBody(cat);
     },
 
     undefined,
@@ -554,6 +565,48 @@ gltfLoader.load(
 );
 
 
+function createCatPhysicalBody(cat) {
+
+    const startPosition = new THREE.Vector3()
+        .copy(cat.position)
+        .add(CAT_PHYSICAL_OFFSET);
+
+    const bodyDesc = RAPIER.RigidBodyDesc
+        .kinematicPositionBased()
+        .setTranslation(
+            startPosition.x,
+            startPosition.y,
+            startPosition.z
+        );
+
+    catPhysicalBody = world.createRigidBody(bodyDesc);
+
+    const colliderDesc = RAPIER.ColliderDesc
+        .cuboid(
+            CAT_PHYSICAL_SIZE.width / 2,
+            CAT_PHYSICAL_SIZE.height / 2,
+            CAT_PHYSICAL_SIZE.depth / 2
+        )
+        .setFriction(0.9)
+        .setRestitution(0.05);
+
+    world.createCollider(
+        colliderDesc,
+        catPhysicalBody
+    );
+
+    catPhysicalDebugMesh = addDebugBox(
+        CAT_PHYSICAL_SIZE.width,
+        CAT_PHYSICAL_SIZE.height,
+        CAT_PHYSICAL_SIZE.depth,
+        startPosition.x,
+        startPosition.y,
+        startPosition.z,
+        0x00ffff
+    );
+
+    catPhysicalDebugMesh.material.opacity = 0;
+}
 
 //
 // ROOM MODEL + ROOM COLLIDERS
@@ -1870,8 +1923,132 @@ function recoverCatFromRagdoll() {
 
     resetCatBonesToBase();
 
+    setCatPhysicalBodyEnabled(true);
+    syncCatPhysicalBodyToCat();
+
     catMode = 'walking';
     isCatGrabbed = false;
+}
+
+function clampCatInsideRoomXZ(position) {
+
+    const halfX = ROOM_SIZE_X / 2;
+    const halfZ = ROOM_SIZE_Z / 2;
+
+    const padding = 2.2;
+
+    position.x = THREE.MathUtils.clamp(
+        position.x,
+        ROOM_CENTER_X - halfX + padding,
+        ROOM_CENTER_X + halfX - padding
+    );
+
+    position.z = THREE.MathUtils.clamp(
+        position.z,
+        ROOM_CENTER_Z - halfZ + padding,
+        ROOM_CENTER_Z + halfZ - padding
+    );
+
+    return position;
+}
+
+function clampCatForWalking(position) {
+
+    clampCatInsideRoomXZ(position);
+
+    position.y = FLOOR_Y;
+
+    return position;
+}
+
+function clampCatForGrabbed(position) {
+
+    clampCatInsideRoomXZ(position);
+
+    position.y = THREE.MathUtils.clamp(
+        position.y,
+        FLOOR_Y,
+        FLOOR_Y + 16
+    );
+
+    return position;
+}
+
+function getCatBoxAtPosition(position) {
+
+    catCollisionCenter
+        .copy(position)
+        .add(CAT_PHYSICAL_OFFSET);
+
+    catCollisionBox.setFromCenterAndSize(
+        catCollisionCenter,
+        catCollisionSize
+    );
+
+    return catCollisionBox;
+}
+
+function catIntersectsFurnitureAt(position) {
+
+    const testBox = getCatBoxAtPosition(position);
+
+    for (const furniture of furnitureColliders) {
+
+        if (!furniture.debugMesh) continue;
+
+        furniture.debugMesh.updateMatrixWorld(true);
+
+        furnitureCollisionBox.setFromObject(
+            furniture.debugMesh
+        );
+
+        if (testBox.intersectsBox(furnitureCollisionBox)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function resolveCatFurnitureCollision(previousPosition, nextPosition) {
+
+    //
+    // If the next position is clear, use it.
+    //
+    if (!catIntersectsFurnitureAt(nextPosition)) {
+        return nextPosition;
+    }
+
+    //
+    // Try sliding on X only.
+    //
+    const slideX = new THREE.Vector3(
+        nextPosition.x,
+        nextPosition.y,
+        previousPosition.z
+    );
+
+    if (!catIntersectsFurnitureAt(slideX)) {
+        return slideX;
+    }
+
+    //
+    // Try sliding on Z only.
+    //
+    const slideZ = new THREE.Vector3(
+        previousPosition.x,
+        nextPosition.y,
+        nextPosition.z
+    );
+
+    if (!catIntersectsFurnitureAt(slideZ)) {
+        return slideZ;
+    }
+
+    //
+    // If both are blocked, stay where the cat was.
+    //
+    return previousPosition.clone();
 }
 
 //
@@ -1911,6 +2088,9 @@ let grabbedMesh = null;
 
 const grabPullStrength = 14;
 const throwStrength = 1.0;
+
+const catGrabPullStrength = 45;
+const catGrabMaxSpeed = 38;
 
 function updateMouseFromEvent(event) {
 
@@ -2145,12 +2325,17 @@ renderer.domElement.addEventListener('mousedown', (event) => {
 
     if (hitCat) {
 
-
         isGrabbing = true;
         isCatGrabbed = true;
         catMode = 'grabbed';
 
         catWander.moving = false;
+
+        //
+        // Keep the stable kinematic cat body active while grabbed.
+        // Do not create catThrowBody here.
+        //
+        setCatPhysicalBodyEnabled(true);
 
         setDragPlaneThroughPoint(catMesh.position);
 
@@ -2250,6 +2435,12 @@ renderer.domElement.addEventListener('mouseup', (event) => {
         badSound.play();
 
         updateFriendship(-10);
+
+        //
+        // The stable grabbed body is no longer needed.
+        // Now we create the dynamic ragdoll body for throwing.
+        //
+        setCatPhysicalBodyEnabled(false);
 
         createCatThrowBody();
 
@@ -2352,10 +2543,21 @@ function updateGrab(delta) {
 
         currentGrabPosition.copy(catMesh.position);
 
-        catMesh.position.lerp(
+        const previousCatPosition = catMesh.position.clone();
+
+        const nextCatPosition = catMesh.position.clone().lerp(
             targetPosition,
             0.35
         );
+
+        clampCatForGrabbed(nextCatPosition);
+
+        const resolvedPosition = resolveCatFurnitureCollision(
+            previousCatPosition,
+            nextCatPosition
+        );
+
+        catMesh.position.copy(resolvedPosition);
 
         grabVelocity
             .copy(catMesh.position)
@@ -2365,6 +2567,7 @@ function updateGrab(delta) {
         previousGrabPosition.copy(catMesh.position);
 
         syncCatColliderToCat();
+        syncCatPhysicalBodyToCat();
 
         return;
     }
@@ -2645,6 +2848,33 @@ function updateCatReaction(delta) {
 
 const triggeredObjects = new Set();
 
+function syncCatPhysicalBodyToCat() {
+
+    if (!catMesh || !catPhysicalBody) return;
+
+    const physicalPosition = new THREE.Vector3()
+        .copy(catMesh.position)
+        .add(CAT_PHYSICAL_OFFSET);
+
+    catPhysicalBody.setNextKinematicTranslation({
+        x: physicalPosition.x,
+        y: physicalPosition.y,
+        z: physicalPosition.z
+    });
+
+    catPhysicalBody.setNextKinematicRotation({
+        x: catMesh.quaternion.x,
+        y: catMesh.quaternion.y,
+        z: catMesh.quaternion.z,
+        w: catMesh.quaternion.w
+    });
+
+    if (catPhysicalDebugMesh) {
+        catPhysicalDebugMesh.position.copy(physicalPosition);
+        catPhysicalDebugMesh.quaternion.copy(catMesh.quaternion);
+    }
+}
+
 function syncCatColliderToCat() {
 
     if (!catMesh || !catBody) return;
@@ -2771,6 +3001,17 @@ function pickNewCatTarget(cat) {
     catWander.moving = true;
 }
 
+const catCollisionBox = new THREE.Box3();
+const furnitureCollisionBox = new THREE.Box3();
+
+const catCollisionCenter = new THREE.Vector3();
+
+const catCollisionSize = new THREE.Vector3(
+    CAT_PHYSICAL_SIZE.width,
+    CAT_PHYSICAL_SIZE.height,
+    CAT_PHYSICAL_SIZE.depth
+);
+
 function updateCatWander(cat, delta) {
     if (!cat) return;
     if (!catWander.moving) {
@@ -2796,11 +3037,31 @@ function updateCatWander(cat, delta) {
 
     direction.normalize();
 
+    const previousCatPosition = cat.position.clone();
+
     cat.position.addScaledVector(
         direction,
         catWander.speed * delta
     );
 
+    clampCatForWalking(cat.position);
+
+    const resolvedPosition = resolveCatFurnitureCollision(
+        previousCatPosition,
+        cat.position
+    );
+
+    const wasBlocked = !resolvedPosition.equals(cat.position);
+
+    cat.position.copy(resolvedPosition);
+
+    if (wasBlocked) {
+
+        catWander.moving = false;
+        catWander.waitTimer = 1.0;
+
+        return;
+    }
 
     cat.rotation.y = Math.atan2(direction.x, direction.z);
 }
@@ -3018,6 +3279,24 @@ function updateCatRagdollBones(delta) {
     }
 }
 
+function setCatPhysicalBodyEnabled(enabled) {
+
+    if (!catPhysicalBody) return;
+
+    if (typeof catPhysicalBody.setEnabled === 'function') {
+
+        catPhysicalBody.setEnabled(enabled);
+
+    } else if (!enabled) {
+
+        catPhysicalBody.setNextKinematicTranslation({
+            x: 9999,
+            y: 9999,
+            z: 9999
+        });
+    }
+}
+
 function animate() {
 
     requestAnimationFrame(animate);
@@ -3034,11 +3313,13 @@ function animate() {
             updateCatBoneWalk(delta);
             updateCatIdleAnimation(catMesh);
             syncCatColliderToCat();
+            syncCatPhysicalBodyToCat();
         }
 
         if (catMode === 'grabbed') {
 
             syncCatColliderToCat();
+            syncCatPhysicalBodyToCat();
         }
 
         if (catMode === 'ragdoll') {
