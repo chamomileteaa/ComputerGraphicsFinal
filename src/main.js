@@ -186,12 +186,12 @@ let catMode = 'walking';
 let catGrabDistance = 4;
 let catRagdollTimer = 0;
 
-const CAT_PHYSICAL_OFFSET = new THREE.Vector3(0, 4, 0);
+const CAT_PHYSICAL_OFFSET = new THREE.Vector3(0, 3, 0);
 
 const CAT_PHYSICAL_SIZE = {
     width: 2.4,
-    height: 7.5,
-    depth: 2.4
+    height: 6,
+    depth: 1.5
 };
 
 const CAT_THROW_CENTER_OFFSET = new THREE.Vector3(0, 3.0, 0);
@@ -1891,18 +1891,20 @@ function recoverCatFromRagdoll() {
 
     if (!catMesh || !catThrowBody) return;
 
-    const position = catThrowBody.translation();
+    syncCatMeshToThrowBody();
+
+    const recoveryPosition = catMesh.position.clone();
+
+    clampCatInsideRoomXZ(recoveryPosition);
+
+    recoveryPosition.y = getCatRecoveryY(recoveryPosition);
 
     world.removeRigidBody(catThrowBody);
 
     catThrowBody = null;
     catThrowCollider = null;
 
-    catMesh.position.set(
-        position.x,
-        FLOOR_Y,
-        position.z
-    );
+    catMesh.position.copy(recoveryPosition);
 
     catMesh.rotation.set(
         catBaseRotation.x,
@@ -2050,7 +2052,94 @@ function resolveCatFurnitureCollision(previousPosition, nextPosition) {
     //
     return previousPosition.clone();
 }
+ function furnitureCanBeRecoverySurface(furniture) {
 
+    const name = furniture.name.toLowerCase();
+
+    //
+    // These are room boundaries, not surfaces the cat should recover onto.
+    //
+    if (name === 'leftbackwall') return false;
+    if (name === 'rightbackwall') return false;
+    if (name === 'ceiling') return false;
+
+    //
+    // These are mostly vertical or thin objects.
+    // They can block movement, but they are awkward recovery surfaces.
+    //
+    if (name.includes('headboard')) return false;
+    if (name.includes('leg')) return false;
+    if (name.includes('speaker')) return false;
+    if (name === 'pc') return false;
+    if (name === 'laptop') return false;
+    if (name === 'back_bookshelf') return false;
+
+    return true;
+}
+
+function catFootprintOverlapsFurnitureXZ(position, furnitureBox) {
+
+    catRecoveryFootprintCenter.set(
+        position.x,
+        furnitureBox.max.y,
+        position.z
+    );
+
+    catRecoveryFootprintBox.setFromCenterAndSize(
+        catRecoveryFootprintCenter,
+        catRecoveryFootprintSize
+    );
+
+    const overlapsX =
+        catRecoveryFootprintBox.max.x >= furnitureBox.min.x &&
+        catRecoveryFootprintBox.min.x <= furnitureBox.max.x;
+
+    const overlapsZ =
+        catRecoveryFootprintBox.max.z >= furnitureBox.min.z &&
+        catRecoveryFootprintBox.min.z <= furnitureBox.max.z;
+
+    return overlapsX && overlapsZ;
+}
+
+function getCatRecoveryY(position) {
+
+    let bestY = FLOOR_Y;
+
+    for (const furniture of furnitureColliders) {
+
+        if (!furniture.debugMesh) continue;
+        if (!furnitureCanBeRecoverySurface(furniture)) continue;
+
+        furniture.debugMesh.updateMatrixWorld(true);
+
+        catRecoveryFurnitureBox.setFromObject(
+            furniture.debugMesh
+        );
+
+        const surfaceY = catRecoveryFurnitureBox.max.y;
+
+        //
+        // Ignore anything below the floor.
+        //
+        if (surfaceY < FLOOR_Y) continue;
+
+        //
+        // Ignore very high objects unless you want the cat recovering
+        // on shelves near the ceiling.
+        //
+        if (surfaceY > FLOOR_Y + 18) continue;
+
+        if (!catFootprintOverlapsFurnitureXZ(position, catRecoveryFurnitureBox)) {
+            continue;
+        }
+
+        if (surfaceY > bestY) {
+            bestY = surfaceY;
+        }
+    }
+
+    return bestY;
+}
 //
 // GRAB SYSTEM
 //
@@ -3009,6 +3098,17 @@ const catCollisionCenter = new THREE.Vector3();
 const catCollisionSize = new THREE.Vector3(
     CAT_PHYSICAL_SIZE.width,
     CAT_PHYSICAL_SIZE.height,
+    CAT_PHYSICAL_SIZE.depth
+);
+
+const catRecoveryFootprintBox = new THREE.Box3();
+const catRecoveryFurnitureBox = new THREE.Box3();
+
+const catRecoveryFootprintCenter = new THREE.Vector3();
+
+const catRecoveryFootprintSize = new THREE.Vector3(
+    CAT_PHYSICAL_SIZE.width,
+    0.2,
     CAT_PHYSICAL_SIZE.depth
 );
 
