@@ -275,7 +275,80 @@ let catReactionType = null;
 
 let catSquishStrength = 0;
 
-const catBaseScale = new THREE.Vector3(3, 3, 3);
+let catSizeProfile = {
+    visualScale: new THREE.Vector3(3, 3, 3),
+    physicalScale: new THREE.Vector3(1, 1, 1),
+    eatOffsetScale: 1
+};
+
+const CAT_SIZE_PROFILES = [
+    {
+        name: 'small',
+        visualScale: new THREE.Vector3(2.4, 2.4, 2.4),
+        physicalScale: new THREE.Vector3(0.8, 0.8, 0.8),
+        eatOffsetScale: 0.85
+    },
+    {
+        name: 'big',
+        visualScale: new THREE.Vector3(3.6, 3.6, 3.6),
+        physicalScale: new THREE.Vector3(1.2, 1.2, 1.2),
+        eatOffsetScale: 1.15
+    },
+    {
+        name: 'tall',
+        visualScale: new THREE.Vector3(2.8, 3.6, 2.8),
+        physicalScale: new THREE.Vector3(0.95, 1.2, 0.95),
+        eatOffsetScale: 1.15
+    },
+    {
+        name: 'short',
+        visualScale: new THREE.Vector3(3.1, 2.4, 3.1),
+        physicalScale: new THREE.Vector3(1.05, 0.8, 1.05),
+        eatOffsetScale: 0.85
+    },
+    {
+        name: 'skinny',
+        visualScale: new THREE.Vector3(2.4, 3.0, 2.2),
+        physicalScale: new THREE.Vector3(0.75, 1.0, 0.75),
+        eatOffsetScale: 1.0
+    },
+    {
+        name: 'fat',
+        visualScale: new THREE.Vector3(3.7, 3.0, 3.4),
+        physicalScale: new THREE.Vector3(1.25, 1.0, 1.2),
+        eatOffsetScale: 1.0
+    }
+];
+
+function chooseRandomCatSizeProfile() {
+
+    const index = Math.floor(
+        Math.random() * CAT_SIZE_PROFILES.length
+    );
+
+    catSizeProfile = CAT_SIZE_PROFILES[index];
+
+    catBaseScale.copy(catSizeProfile.visualScale);
+
+    console.log('Cat size profile:', catSizeProfile.name);
+}
+
+function updateCatCollisionSizeForProfile() {
+
+    catCollisionSize.set(
+        CAT_PHYSICAL_SIZE.width * catSizeProfile.physicalScale.x,
+        CAT_PHYSICAL_SIZE.height * catSizeProfile.physicalScale.y,
+        CAT_PHYSICAL_SIZE.depth * catSizeProfile.physicalScale.z
+    );
+
+    catRecoveryFootprintSize.set(
+        CAT_PHYSICAL_SIZE.width * catSizeProfile.physicalScale.x,
+        0.2,
+        CAT_PHYSICAL_SIZE.depth * catSizeProfile.physicalScale.z
+    );
+}
+
+let catBaseScale = new THREE.Vector3(3, 3, 3);
 const catBaseRotation = new THREE.Euler(0, 0, 0);
 const catHeadBaseRotation = new THREE.Euler(0, 0, 0);
 
@@ -513,7 +586,10 @@ gltfLoader.load(
             child.receiveShadow = true;
         });
 
-        cat.scale.set(3, 3, 3);
+        chooseRandomCatSizeProfile();
+        updateCatCollisionSizeForProfile();
+
+        cat.scale.copy(catBaseScale);
         cat.position.set(0, -3, 3);
 
         scene.add(cat);
@@ -581,11 +657,15 @@ function createCatPhysicalBody(cat) {
 
     catPhysicalBody = world.createRigidBody(bodyDesc);
 
+    const physicalWidth = CAT_PHYSICAL_SIZE.width * catSizeProfile.physicalScale.x;
+    const physicalHeight = CAT_PHYSICAL_SIZE.height * catSizeProfile.physicalScale.y;
+    const physicalDepth = CAT_PHYSICAL_SIZE.depth * catSizeProfile.physicalScale.z;
+
     const colliderDesc = RAPIER.ColliderDesc
         .cuboid(
-            CAT_PHYSICAL_SIZE.width / 2,
-            CAT_PHYSICAL_SIZE.height / 2,
-            CAT_PHYSICAL_SIZE.depth / 2
+            physicalWidth / 2,
+            physicalHeight / 2,
+            physicalDepth / 2
         )
         .setFriction(0.9)
         .setRestitution(0.05);
@@ -596,9 +676,9 @@ function createCatPhysicalBody(cat) {
     );
 
     catPhysicalDebugMesh = addDebugBox(
-        CAT_PHYSICAL_SIZE.width,
-        CAT_PHYSICAL_SIZE.height,
-        CAT_PHYSICAL_SIZE.depth,
+        physicalWidth,
+        physicalHeight,
+        physicalDepth,
         startPosition.x,
         startPosition.y,
         startPosition.z,
@@ -2968,9 +3048,13 @@ function syncCatColliderToCat() {
 
     if (!catMesh || !catBody) return;
 
+    const scaledEatOffset = CAT_EAT_OFFSET
+        .clone()
+        .multiplyScalar(catSizeProfile.eatOffsetScale);
+
     const eatPosition = new THREE.Vector3()
         .copy(catMesh.position)
-        .add(CAT_EAT_OFFSET);
+        .add(scaledEatOffset);
 
     catBody.setTranslation(
         {
@@ -3095,7 +3179,7 @@ const furnitureCollisionBox = new THREE.Box3();
 
 const catCollisionCenter = new THREE.Vector3();
 
-const catCollisionSize = new THREE.Vector3(
+let catCollisionSize = new THREE.Vector3(
     CAT_PHYSICAL_SIZE.width,
     CAT_PHYSICAL_SIZE.height,
     CAT_PHYSICAL_SIZE.depth
@@ -3106,7 +3190,7 @@ const catRecoveryFurnitureBox = new THREE.Box3();
 
 const catRecoveryFootprintCenter = new THREE.Vector3();
 
-const catRecoveryFootprintSize = new THREE.Vector3(
+let catRecoveryFootprintSize = new THREE.Vector3(
     CAT_PHYSICAL_SIZE.width,
     0.2,
     CAT_PHYSICAL_SIZE.depth
