@@ -3482,6 +3482,8 @@ function setCatPhysicalBodyEnabled(enabled) {
 }
 
 let randomEventObject = null;
+let randomEventPhysicsObject = null;
+
 let goldenFish = null;
 let rottenFish = null;
 
@@ -3588,6 +3590,19 @@ function animate() {
         if (obj.mesh === milkMesh) {
             milkMesh = null;
             milkBody = null;
+        }
+        if (obj.mesh === randomEventObject) {
+            randomEventObject = null;
+            randomEventPhysicsObject = null;
+            goldenFish = null;
+            rottenFish = null;
+        }
+
+        if (obj === randomEventPhysicsObject) {
+            randomEventObject = null;
+            randomEventPhysicsObject = null;
+            goldenFish = null;
+            rottenFish = null;
         }
 
         const index = grabbableObjects.indexOf(obj);
@@ -3755,6 +3770,24 @@ window.addEventListener('resize', () => {
     );
 });
 
+function queueRandomFishForRemoval() {
+
+    if (!randomEventPhysicsObject) return;
+
+    //
+    // Do not remove the physics body directly here.
+    // Queue it so the existing safe removal system handles it.
+    //
+    if (!objectsToRemove.includes(randomEventPhysicsObject)) {
+        objectsToRemove.push(randomEventPhysicsObject);
+    }
+
+    randomEventObject = null;
+    randomEventPhysicsObject = null;
+
+    goldenFish = null;
+    rottenFish = null;
+}
 
 function setNextRandomSpawnTime() {
     randomSpawnDelay = THREE.MathUtils.randInt(5000, 6000);
@@ -3766,27 +3799,99 @@ function getRandomMapPosition() {
 
     return new THREE.Vector3(
         THREE.MathUtils.randFloat(-range, range),
-        FLOOR_Y + 1,
+        FLOOR_Y + 4,
         THREE.MathUtils.randFloat(-range, range)
     );
 }
 
+function makeRandomFishPhysicsObject(mesh, options) {
+
+    const spawnPosition = mesh.position.clone();
+
+    const bodyDesc = RAPIER.RigidBodyDesc
+        .dynamic()
+        .setTranslation(
+            spawnPosition.x,
+            spawnPosition.y,
+            spawnPosition.z
+        )
+        .setLinearDamping(options.linearDamping ?? 0.35)
+        .setAngularDamping(options.angularDamping ?? 0.6);
+
+    const body = world.createRigidBody(bodyDesc);
+
+    const colliderDesc = RAPIER.ColliderDesc
+        .cuboid(
+            options.colliderHalfSize.x,
+            options.colliderHalfSize.y,
+            options.colliderHalfSize.z
+        )
+        .setDensity(options.density ?? 1.0)
+        .setFriction(options.friction ?? 0.8)
+        .setRestitution(options.restitution ?? 0.05);
+
+    const colliderRef = world.createCollider(
+        colliderDesc,
+        body
+    );
+
+    mesh.userData.collider = colliderRef;
+    mesh.userData.friendshipValue = options.friendshipValue;
+    mesh.userData.type = options.type;
+    mesh.userData.isRandomEventFish = true;
+
+    mesh.traverse((child) => {
+
+        if (!child.isMesh) return;
+
+        child.castShadow = true;
+        child.receiveShadow = true;
+    });
+
+    const physicsObject = {
+        mesh,
+        body
+    };
+
+    grabbableObjects.push(physicsObject);
+
+    return physicsObject;
+}
+
 function spawnGoldenFish() {
+
     gltfLoader.load(
-        '../models/randomobject/goldenfish.gltf',
+        './models/randomobject/goldenfish.gltf',
 
         (gltf) => {
-            randomEventObject = gltf.scene;
-            goldenFish = randomEventObject;
+
+            const fish = gltf.scene;
+
+            randomEventObject = fish;
+            goldenFish = fish;
             rottenFish = null;
 
-            randomEventObject.position.copy(getRandomMapPosition());
-            randomEventObject.scale.set(0.4, 0.4, 0.4);
+            fish.position.copy(getRandomMapPosition());
+            fish.scale.set(0.4, 0.4, 0.4);
 
-            randomEventObject.userData.friendshipValue = 25;
-            randomEventObject.userData.type = 'goldenFish';
+            fish.userData.friendshipValue = 100;
+            fish.userData.type = 'goldenFish';
 
-            scene.add(randomEventObject);
+            scene.add(fish);
+
+            randomEventPhysicsObject = makeRandomFishPhysicsObject(
+                fish,
+                {
+                    type: 'goldenFish',
+                    friendshipValue: 100,
+                    colliderHalfSize: new THREE.Vector3(0.55, 0.25, 0.25),
+                    density: 0.6,
+                    friction: 0.8,
+                    restitution: 0.1,
+                    linearDamping: 0.35,
+                    angularDamping: 0.6
+                }
+            );
 
             console.log('Golden fish spawned');
         }
@@ -3794,21 +3899,39 @@ function spawnGoldenFish() {
 }
 
 function spawnRottenFish() {
+
     gltfLoader.load(
-        '../models/randomobject/rottenfish.gltf',
+        './models/randomobject/rottenfish.gltf',
 
         (gltf) => {
-            randomEventObject = gltf.scene;
-            rottenFish = randomEventObject;
+
+            const fish = gltf.scene;
+
+            randomEventObject = fish;
+            rottenFish = fish;
             goldenFish = null;
 
-            randomEventObject.position.copy(getRandomMapPosition());
-            randomEventObject.scale.set(1, 1, 1);
+            fish.position.copy(getRandomMapPosition());
+            fish.scale.set(1, 1, 1);
 
-            randomEventObject.userData.friendshipValue = -25;
-            randomEventObject.userData.type = 'rottenFish';
+            fish.userData.friendshipValue = -100;
+            fish.userData.type = 'rottenFish';
 
-            scene.add(randomEventObject);
+            scene.add(fish);
+
+            randomEventPhysicsObject = makeRandomFishPhysicsObject(
+                fish,
+                {
+                    type: 'rottenFish',
+                    friendshipValue: -100,
+                    colliderHalfSize: new THREE.Vector3(0.7, 0.35, 0.35),
+                    density: 0.8,
+                    friction: 0.8,
+                    restitution: 0.05,
+                    linearDamping: 0.35,
+                    angularDamping: 0.6
+                }
+            );
 
             console.log('Rotten fish spawned');
         }
@@ -3816,12 +3939,8 @@ function spawnRottenFish() {
 }
 
 function spawnRandomFish() {
-    if (randomEventObject) {
-        scene.remove(randomEventObject);
-        randomEventObject = null;
-        goldenFish = null;
-        rottenFish = null;
-    }
+
+    queueRandomFishForRemoval();
 
     const random = Math.random();
 
@@ -3833,4 +3952,3 @@ function spawnRandomFish() {
 
     setNextRandomSpawnTime();
 }
-
