@@ -3757,7 +3757,7 @@ window.addEventListener('resize', () => {
 
 
 function setNextRandomSpawnTime() {
-    randomSpawnDelay = THREE.MathUtils.randInt(30000, 40000);
+    randomSpawnDelay = THREE.MathUtils.randInt(5000, 6000);
     nextRandomSpawnTime = performance.now() + randomSpawnDelay;
 }
 
